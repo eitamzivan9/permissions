@@ -1,12 +1,13 @@
-# Graph Report - .  (2026-07-20)
+# Graph Report - Premissions  (2026-07-23)
 
 ## Corpus Check
-- Corpus is ~15,033 words - fits in a single context window. You may not need a graph.
+- 98 files · ~19,807 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 555 nodes · 937 edges · 46 communities (41 shown, 5 thin omitted)
-- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 179 edges (avg confidence: 0.68)
-- Token cost: 147,526 input · 0 output
+- 726 nodes · 1368 edges · 55 communities (50 shown, 5 thin omitted)
+- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 256 edges (avg confidence: 0.66)
+- Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
 - Frontend React App
@@ -41,18 +42,26 @@
 - Mock Users Docs
 - Favicon Asset
 - Backend Package Metadata
+- Page
+- SystemRole
+- set_grant
+- test_access_resolver.py
+- test_catalog_service.py
+- lifespan
+- is_valid_child
+- get_my_access
 
 ## God Nodes (most connected - your core abstractions)
-1. `AuthenticatedUser` - 33 edges
-2. `GrantTarget` - 31 edges
-3. `PermissionGrantService` - 21 edges
-4. `AccessResolver` - 19 edges
-5. `PermissionLevel` - 19 edges
-6. `compilerOptions` - 18 edges
-7. `PermissionGrantRepository` - 17 edges
-8. `CatalogService` - 15 edges
-9. `LayerRepository` - 15 edges
-10. `login_as()` - 15 edges
+1. `AuthenticatedUser` - 52 edges
+2. `Grantee` - 35 edges
+3. `Role` - 33 edges
+4. `AccessResolver` - 30 edges
+5. `Page` - 24 edges
+6. `ResourceRepository` - 24 edges
+7. `get_current_user()` - 23 edges
+8. `PermissionGrantService` - 23 edges
+9. `AuditService` - 22 edges
+10. `login_as()` - 22 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `MirroredEntityRepository` --references--> `MirroredEntityRepository (Protocol)`  [INFERRED]
@@ -61,9 +70,9 @@
   CLAUDE.md → PLAN.md
 - `domain.ports` --conceptually_related_to--> `MirroredEntityRepository (Protocol)`  [INFERRED]
   CLAUDE.md → PLAN.md
-- `Hexagonal Architecture` --references--> `Layered/Hexagonal Architecture`  [INFERRED]
-  CLAUDE.md → PLAN.md
 - `Delegation Rule` --references--> `Delegation Rule`  [INFERRED]
+  CLAUDE.md → PLAN.md
+- `Scale Assumptions` --conceptually_related_to--> `Permissions Server Implementation Plan`  [INFERRED]
   CLAUDE.md → PLAN.md
 
 ## Import Cycles
@@ -74,83 +83,83 @@
 - **Delegation Enforcement Flow** — plan_permissiongrantservice, plan_accessresolver, plan_orghierarchy [EXTRACTED 1.00]
 - **Port/Adapter/DI Wiring Pattern** — plan_mirroredentityrepository, plan_inmemorymirroredentityrepository, plan_deps_py, plan_grants_router [INFERRED 0.85]
 
-## Communities (46 total, 5 thin omitted)
+## Communities (55 total, 5 thin omitted)
 
 ### Community 0 - "Frontend React App"
 Cohesion: 0.07
 Nodes (43): ApiError, buildQueryString(), CatalogResponse, clearStoredToken(), deleteGrant(), DeleteGrantParams, extractErrorMessage(), ForbiddenError (+35 more)
 
 ### Community 1 - "Permission Grant Domain & Tests"
-Cohesion: 0.06
-Nodes (33): PermissionGrant, PermissionLevel, GrantTarget, A map-scope target (layer_id=None) or a layer-scope target., ForbiddenError, Authenticated, but not permitted for this action — api/ maps this to 403., PermissionGrant, PermissionLevel (+25 more)
+Cohesion: 0.08
+Nodes (26): AuditLogEntryOut, AuditLogPageOut, BaseModel, AuditService, Records grant/revoke actions append-only. Kept as a collaborator that Permission, `role` is the NEW role the grantee ends up with., PermissionGrantService, PermissionGrant (+18 more)
 
 ### Community 2 - "Catalog API & Schemas"
 Cohesion: 0.08
-Nodes (34): get_maps_catalog(), Depends, ExternalMapAccessOut, ExternalMyAccessPageOut, get_my_access(), BaseModel, Depends, CatalogPageOut (+26 more)
+Nodes (26): get_catalog(), Depends, _to_out(), CatalogItemOut, CatalogPageOut, BaseModel, AccessSnapshot, The one place effective role is computed. Never re-implement this resolution log (+18 more)
 
 ### Community 3 - "Grants Router & DI Wiring"
-Cohesion: 0.09
-Nodes (33): get_access_resolver(), get_catalog_service(), get_current_user(), get_grant_repository(), get_layer_repository(), get_map_repository(), get_org_hierarchy(), get_permission_grant_service() (+25 more)
+Cohesion: 0.08
+Nodes (36): get_access_resolver(), get_access_transparency_service(), get_audit_log_repository(), get_audit_service(), get_auth_service(), get_catalog_service(), get_grant_repository(), get_org_hierarchy() (+28 more)
 
 ### Community 4 - "Frontend Package Dependencies"
 Cohesion: 0.06
 Nodes (35): dependencies, react, react-dom, react-router-dom, devDependencies, oxlint, tailwindcss, @tailwindcss/vite (+27 more)
 
 ### Community 5 - "Backend Integration Tests"
-Cohesion: 0.13
-Nodes (21): AsyncClient, auth_headers(), client(), login_as(), A fresh app + in-memory state per test, talked to over real HTTP     semantics (, test_login_then_me_round_trip(), test_protected_route_with_garbage_token_is_401(), test_catalog_search_filters_by_name() (+13 more)
+Cohesion: 0.11
+Nodes (29): AsyncClient, auth_headers(), client(), login_as(), A fresh app + in-memory state per test, talked to over real HTTP     semantics (, test_login_then_me_round_trip(), test_protected_route_with_garbage_token_is_401(), _find() (+21 more)
 
 ### Community 6 - "In-Memory Repositories"
-Cohesion: 0.09
-Nodes (14): Layer, InMemoryLayerRepository, InMemoryMapRepository, _HasIdAndName, InMemoryMirroredEntityRepository, Protocol, T, Generic in-memory implementation of MirroredEntityRepository, shared by the Map (+6 more)
+Cohesion: 0.12
+Nodes (14): MockOrgHierarchy, access_resolver(), access_transparency_service(), audit_log_repo(), audit_service(), catalog_service(), org_hierarchy(), permission_grant_service() (+6 more)
 
 ### Community 7 - "Frontend TS App Config"
 Cohesion: 0.08
 Nodes (23): compilerOptions, allowArbitraryExtensions, allowImportingTsExtensions, erasableSyntaxOnly, jsx, lib, module, moduleDetection (+15 more)
 
 ### Community 8 - "Mock Org & User Directory"
-Cohesion: 0.12
-Nodes (12): MockOrgHierarchy, MockUserDirectory, load_mock_users(), MockUserRecord, Shared loader for mock_users.json — the single parse point used by both mock_use, org_hierarchy(), user_directory(), Verifies the visited-set guards in MockOrgHierarchy actually stop traversal on c (+4 more)
+Cohesion: 0.21
+Nodes (6): MockUserDirectory, load_mock_users(), MockUserRecord, Shared loader for mock_users.json — the single parse point used by both mock_use, user_directory(), TypedDict
 
 ### Community 9 - "Frontend TS Node Config"
 Cohesion: 0.10
 Nodes (19): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection, noEmit, noFallthroughCasesInSwitch (+11 more)
 
 ### Community 10 - "Architecture & Phase Overview"
-Cohesion: 0.16
-Nodes (18): Hexagonal Architecture, Permission Model (none/read/edit), Permissions Server, Phase 1 (outside org network), Phase 2 (inside org network), Scale Assumptions, UI Scope, Build Sequence (+10 more)
+Cohesion: 0.19
+Nodes (15): Permissions Server, Phase 1 (outside org network), Phase 2 (inside org network), Scale Assumptions, UI Scope, Build Sequence, External API Auth (forwarded ADFS JWT), Maps/Layers Mirror (+7 more)
 
 ### Community 11 - "App Bootstrap & JWT Issuer"
-Cohesion: 0.21
-Nodes (11): get_settings(), Application settings, read from environment (.env supported). No hardcoded secre, Settings, JwtHs256Issuer, Mock TokenIssuer — HS256, ADFS-shaped claims (sub/name/email/iat/exp)., create_app(), lifespan(), FastAPI (+3 more)
+Cohesion: 0.18
+Nodes (7): get_settings(), Application settings, read from environment (.env supported). No hardcoded secre, Settings, AdfsAuthMockTokenIssuer, TokenIssuer backed by the adfs-auth library's MockTokenAcquirer — delegates, auth_service(), BaseSettings
 
 ### Community 12 - "Auth Service & Token Issuer"
-Cohesion: 0.19
-Nodes (7): get_auth_service(), get_token_issuer(), AuthService, NotFoundError, Protocol, Issues a bearer token for a user. Only the mock auth flow implements this —, TokenIssuer
+Cohesion: 0.16
+Nodes (8): AuthService, AuthenticatedUser, Protocol, Issues a bearer token for a user. Only the mock auth flow implements this —, TokenIssuer, Protocol, Looks up identities. Backed by mock_users.json now, real AD/ADFS later., UserDirectory
 
 ### Community 13 - "Auth Domain Ports"
-Cohesion: 0.21
-Nodes (7): AuthenticatedUser, Protocol, Validates a bearer token and returns who it belongs to.      Phase 2 swap point:, TokenValidator, Protocol, Looks up identities. Backed by mock_users.json now, real AD/ADFS later., UserDirectory
+Cohesion: 0.40
+Nodes (3): Protocol, Validates a bearer token and returns who it belongs to.      Phase 2 swap point:, TokenValidator
 
 ### Community 14 - "Auth API Router & Schemas"
 Cohesion: 0.29
 Nodes (9): get_me(), list_mock_users(), login(), Depends, LoginRequest, LoginResponse, MockUserOut, BaseModel (+1 more)
 
 ### Community 15 - "Service Design Cross-References"
-Cohesion: 0.25
-Nodes (11): can_manage, MirroredEntityRepository, No Duplicated Code Rule, PermissionGrantService, AccessResolver, Layered/Hexagonal Architecture, AuthService, CatalogService (+3 more)
+Cohesion: 0.23
+Nodes (12): can_manage, Hexagonal Architecture, MirroredEntityRepository, No Duplicated Code Rule, PermissionGrantService, AccessResolver, Layered/Hexagonal Architecture, AuthService (+4 more)
 
 ### Community 16 - "Error Handling"
-Cohesion: 0.24
-Nodes (8): FastAPI, Translates domain/errors.py exceptions into HTTP responses, in one place — indiv, register_error_handlers(), ConflictError, DomainError, Domain-level errors. api/ translates these into HTTP responses., Base class for all domain/application errors., Exception
+Cohesion: 0.10
+Nodes (25): ConflictError, DomainError, ForbiddenError, NotFoundError, Domain-level errors. api/ translates these into HTTP responses., Missing, malformed, or expired token — api/ maps this to 401., Authenticated, but not permitted for this action — api/ maps this to 403., Base class for all domain/application errors. (+17 more)
 
 ### Community 17 - "Access Resolution Logic"
-Cohesion: 0.33
-Nodes (4): AccessSnapshot, PermissionLevel, The one place effective permission is computed. Never re-implement this resoluti, A user's full grant set, pre-indexed for O(1) lookups. The single place     'lay
+Cohesion: 0.09
+Nodes (23): get_current_user(), get_team_repository(), add_team_member(), create_team(), list_team_members(), list_teams(), Depends, Response (+15 more)
 
 ### Community 18 - "JWT Validator & Auth Tests"
-Cohesion: 0.22
-Nodes (6): Missing, malformed, or expired token — api/ maps this to 401., UnauthorizedError, JwtHs256Validator, Mock TokenValidator — HS256. Replaced (not edited around) by a real ADFS     JWK, test_login_issues_a_token_that_resolves_to_the_right_user(), test_login_unknown_user_raises_not_found()
+Cohesion: 0.29
+Nodes (4): AdfsAuthMockTokenValidator, TokenValidator backed by the adfs-auth library's MockTokenValidator.      The li, test_login_issues_a_token_that_resolves_to_the_right_user(), test_login_unknown_user_raises_not_found()
 
 ### Community 19 - "SOLID Principles (Docs)"
 Cohesion: 0.25
@@ -173,8 +182,8 @@ Cohesion: 0.43
 Nodes (7): Bluesky icon (social link, butterfly logo), Discord icon (social link, game-controller/robot-face logo), Documentation icon (open book / doc outline), GitHub icon (Octocat mark), Social/people icon (two-person avatar with sparkle badge), icons.svg (frontend icon sprite sheet), X (Twitter) icon
 
 ### Community 24 - "Delegation Rule Docs"
-Cohesion: 0.40
-Nodes (5): AccessResolver, Delegation Rule, mock_org_hierarchy.py, Single Responsibility Principle (SRP), Delegation Rule
+Cohesion: 0.29
+Nodes (7): AccessResolver, Delegation Rule, mock_org_hierarchy.py, Permission Model (none/read/edit), Single Responsibility Principle (SRP), Delegation Rule, Permission Scope (map/layer)
 
 ### Community 25 - "Frontend Stack Docs"
 Cohesion: 0.50
@@ -183,6 +192,38 @@ Nodes (5): Oxlint, React, React Compiler, Vite, Technology Stack
 ### Community 26 - "External API Docs"
 Cohesion: 0.50
 Nodes (4): /external/v1/my-access API, API Endpoints Table, external_router.py, grants_router.py
+
+### Community 46 - "Page"
+Cohesion: 0.10
+Nodes (14): AuditLogEntry, AuditLogRepository, Protocol, Newest-first. Append-only — no update/delete method on this port,         by des, EntityRepository, Page, T, Shared read contract for entities identified by id and searchable by name. Backs (+6 more)
+
+### Community 47 - "SystemRole"
+Cohesion: 0.10
+Nodes (16): check_access(), my_access(), Depends, _to_out(), AccessSourceOut, BaseModel, AccessSource, AccessTransparencyService (+8 more)
+
+### Community 48 - "set_grant"
+Cohesion: 0.25
+Nodes (14): delete_grant(), _ensure_resource_exists(), list_grants_for_resource(), list_manageable_users(), Depends, PermissionGrant, Response, set_grant() (+6 more)
+
+### Community 49 - "test_access_resolver.py"
+Cohesion: 0.13
+Nodes (6): The barrier only blocks what would have come from ABOVE it — a grant     placed, A workspace-wide grant normally reaches every descendant. Flipping     inherits_, test_highest_rank_wins_between_direct_and_team_grant(), test_inherits_from_parent_false_still_honors_its_own_grant(), test_inherits_from_parent_false_walls_off_the_workspace_grant(), test_team_grant_used_when_no_direct_grant()
+
+### Community 50 - "test_catalog_service.py"
+Cohesion: 0.18
+Nodes (6): _find(), A grant on a single Layer, with no role on the Map itself, still makes     that, A grant on just one Layer (nothing on the Map itself) still makes the     Map's, test_can_fetch_bubbles_up_from_a_single_accessible_layer(), test_catalog_no_search_returns_full_workspace_tree_annotated_none(), test_external_access_includes_map_reachable_only_via_one_layer()
+
+### Community 51 - "lifespan"
+Cohesion: 0.36
+Nodes (7): FastAPI, Translates domain/errors.py exceptions into HTTP responses, in one place — indiv, register_error_handlers(), create_app(), lifespan(), FastAPI, _seed_root_grants()
+
+### Community 52 - "is_valid_child"
+Cohesion: 0.43
+Nodes (7): is_valid_child(), test_folder_allows_folder_map_and_layer_directly(), test_group_nests_indefinitely(), test_layer_is_always_a_leaf(), test_map_allows_group_and_layer_only(), test_only_a_workspace_may_be_a_root(), test_workspace_allows_folder_map_and_layer_directly()
+
+### Community 53 - "get_my_access"
+Cohesion: 0.53
+Nodes (5): ExternalMapAccessOut, ExternalMyAccessPageOut, get_my_access(), BaseModel, Depends
 
 ## Ambiguous Edges - Review These
 - `Documentation icon (open book / doc outline)` → `Social/people icon (two-person avatar with sparkle badge)`  [AMBIGUOUS]
@@ -198,15 +239,15 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **What is the exact relationship between `Documentation icon (open book / doc outline)` and `Social/people icon (two-person avatar with sparkle badge)`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `AuthenticatedUser` connect `Auth Domain Ports` to `Permission Grant Domain & Tests`, `Catalog API & Schemas`, `Grants Router & DI Wiring`, `Mock Org & User Directory`, `App Bootstrap & JWT Issuer`, `Auth Service & Token Issuer`, `Auth API Router & Schemas`, `JWT Validator & Auth Tests`?**
-  _High betweenness centrality (0.085) - this node is a cross-community bridge._
-- **Why does `GrantTarget` connect `Permission Grant Domain & Tests` to `App Bootstrap & JWT Issuer`, `Catalog API & Schemas`, `Grants Router & DI Wiring`?**
-  _High betweenness centrality (0.074) - this node is a cross-community bridge._
-- **Why does `lifespan()` connect `App Bootstrap & JWT Issuer` to `Mock Org & User Directory`, `Permission Grant Domain & Tests`, `JWT Validator & Auth Tests`, `In-Memory Repositories`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
-- **Are the 10 inferred relationships involving `AuthenticatedUser` (e.g. with `ExternalMapAccessOut` and `ExternalMyAccessPageOut`) actually correct?**
-  _`AuthenticatedUser` has 10 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 17 inferred relationships involving `GrantTarget` (e.g. with `PermissionGrantService` and `PermissionGrantRepository`) actually correct?**
-  _`GrantTarget` has 17 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 11 inferred relationships involving `PermissionGrantService` (e.g. with `AccessResolver` and `AuthenticatedUser`) actually correct?**
-  _`PermissionGrantService` has 11 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `AuthenticatedUser` connect `Auth Service & Token Issuer` to `Permission Grant Domain & Tests`, `Catalog API & Schemas`, `Grants Router & DI Wiring`, `Mock Org & User Directory`, `App Bootstrap & JWT Issuer`, `Auth Domain Ports`, `Auth API Router & Schemas`, `SystemRole`, `set_grant`, `Access Resolution Logic`, `JWT Validator & Auth Tests`, `get_my_access`?**
+  _High betweenness centrality (0.101) - this node is a cross-community bridge._
+- **Why does `Grantee` connect `Permission Grant Domain & Tests` to `Catalog API & Schemas`, `Grants Router & DI Wiring`, `SystemRole`, `set_grant`, `test_access_resolver.py`, `Error Handling`, `lifespan`?**
+  _High betweenness centrality (0.095) - this node is a cross-community bridge._
+- **Why does `lifespan()` connect `lifespan` to `Permission Grant Domain & Tests`, `Catalog API & Schemas`, `In-Memory Repositories`, `Mock Org & User Directory`, `App Bootstrap & JWT Issuer`, `Page`, `SystemRole`, `Access Resolution Logic`, `JWT Validator & Auth Tests`?**
+  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+- **Are the 13 inferred relationships involving `AuthenticatedUser` (e.g. with `ExternalMapAccessOut` and `ExternalMyAccessPageOut`) actually correct?**
+  _`AuthenticatedUser` has 13 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 15 inferred relationships involving `Grantee` (e.g. with `AccessResolver` and `.snapshot_for_user()`) actually correct?**
+  _`Grantee` has 15 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 20 inferred relationships involving `Role` (e.g. with `ExternalMapAccessOut` and `ExternalMyAccessPageOut`) actually correct?**
+  _`Role` has 20 INFERRED edges - model-reasoned connections that need verification._

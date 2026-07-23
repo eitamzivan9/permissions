@@ -53,5 +53,15 @@
   "51": "lifespan",
   "52": "is_valid_child",
   "53": "get_my_access",
-  "54": "test_audit_service.py"
+  "54": "test_audit_service.py",
+  "55": "InMemoryTeamRepository",
+  "56": "PermissionGrantRepository",
+  "57": "unit/conftest.py",
+  "58": "env.py",
+  "59": "build_engine_and_sessionmaker",
+  "60": "get_catalog",
+  "61": "AdfsAuthMockTokenIssuer",
+  "62": "tests/conftest.py",
+  "63": "db/__init__.py",
+  "64": "repositories/__init__.py"
 }
