@@ -1,0 +1,37 @@
+[
+  { "id": "u001", "name": "Dana Whitfield", "email": "dana.whitfield@geoteam.example", "manager_id": null },
+
+  { "id": "u002", "name": "Marcus Ilic", "email": "marcus.ilic@geoteam.example", "manager_id": "u001" },
+  { "id": "u003", "name": "Priya Anand", "email": "priya.anand@geoteam.example", "manager_id": "u001" },
+
+  { "id": "u004", "name": "Sofia Rinaldi", "email": "sofia.rinaldi@geoteam.example", "manager_id": "u002" },
+  { "id": "u005", "name": "Tomas Vega", "email": "tomas.vega@geoteam.example", "manager_id": "u002" },
+  { "id": "u006", "name": "Grace Okafor", "email": "grace.okafor@geoteam.example", "manager_id": "u003" },
+  { "id": "u007", "name": "Liam Fitzgerald", "email": "liam.fitzgerald@geoteam.example", "manager_id": "u003" },
+
+  { "id": "u008", "name": "Elena Kowalski", "email": "elena.kowalski@geoteam.example", "manager_id": "u004" },
+  { "id": "u009", "name": "Ravi Deshmukh", "email": "ravi.deshmukh@geoteam.example", "manager_id": "u004" },
+  { "id": "u010", "name": "Nadia Petrov", "email": "nadia.petrov@geoteam.example", "manager_id": "u005" },
+  { "id": "u011", "name": "Owen Bennett", "email": "owen.bennett@geoteam.example", "manager_id": "u005" },
+  { "id": "u012", "name": "Fatima Al-Sayed", "email": "fatima.al-sayed@geoteam.example", "manager_id": "u006" },
+  { "id": "u013", "name": "Jonas Berg", "email": "jonas.berg@geoteam.example", "manager_id": "u006" },
+  { "id": "u014", "name": "Camille Dubois", "email": "camille.dubois@geoteam.example", "manager_id": "u007" },
+  { "id": "u015", "name": "Hiro Tanaka", "email": "hiro.tanaka@geoteam.example", "manager_id": "u007" },
+
+  { "id": "u016", "name": "Ana Beltran", "email": "ana.beltran@geoteam.example", "manager_id": "u008" },
+  { "id": "u017", "name": "Ben Okonkwo", "email": "ben.okonkwo@geoteam.example", "manager_id": "u008" },
+  { "id": "u018", "name": "Chloe Martin", "email": "chloe.martin@geoteam.example", "manager_id": "u009" },
+  { "id": "u019", "name": "Dmitri Sokolov", "email": "dmitri.sokolov@geoteam.example", "manager_id": "u009" },
+  { "id": "u020", "name": "Emiko Sato", "email": "emiko.sato@geoteam.example", "manager_id": "u010" },
+  { "id": "u021", "name": "Felix Novak", "email": "felix.novak@geoteam.example", "manager_id": "u010" },
+  { "id": "u022", "name": "Gita Rao", "email": "gita.rao@geoteam.example", "manager_id": "u011" },
+  { "id": "u023", "name": "Hassan Malik", "email": "hassan.malik@geoteam.example", "manager_id": "u011" },
+  { "id": "u024", "name": "Ines Costa", "email": "ines.costa@geoteam.example", "manager_id": "u012" },
+  { "id": "u025", "name": "Jack Sullivan", "email": "jack.sullivan@geoteam.example", "manager_id": "u012" },
+  { "id": "u026", "name": "Karin Larsen", "email": "karin.larsen@geoteam.example", "manager_id": "u013" },
+  { "id": "u027", "name": "Leo Moreau", "email": "leo.moreau@geoteam.example", "manager_id": "u013" },
+  { "id": "u028", "name": "Mei Lin", "email": "mei.lin@geoteam.example", "manager_id": "u014" },
+  { "id": "u029", "name": "Noah Fischer", "email": "noah.fischer@geoteam.example", "manager_id": "u014" },
+  { "id": "u030", "name": "Olivia Brandt", "email": "olivia.brandt@geoteam.example", "manager_id": "u015" },
+  { "id": "u031", "name": "Pavel Nowak", "email": "pavel.nowak@geoteam.example", "manager_id": "u015" }
+]
