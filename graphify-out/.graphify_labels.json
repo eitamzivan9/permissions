@@ -63,5 +63,9 @@
   "61": "AdfsAuthMockTokenIssuer",
   "62": "tests/conftest.py",
   "63": "db/__init__.py",
-  "64": "repositories/__init__.py"
+  "64": "repositories/__init__.py",
+  "65": "Role",
+  "66": "AccessTransparencyService",
+  "67": "check_access",
+  "68": ".__init__"
 }

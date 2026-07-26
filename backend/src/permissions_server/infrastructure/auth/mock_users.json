@@ -33,5 +33,9 @@
   { "id": "u028", "name": "Mei Lin", "email": "mei.lin@geoteam.example", "manager_id": "u014" },
   { "id": "u029", "name": "Noah Fischer", "email": "noah.fischer@geoteam.example", "manager_id": "u014" },
   { "id": "u030", "name": "Olivia Brandt", "email": "olivia.brandt@geoteam.example", "manager_id": "u015" },
-  { "id": "u031", "name": "Pavel Nowak", "email": "pavel.nowak@geoteam.example", "manager_id": "u015" }
+  { "id": "u031", "name": "Pavel Nowak", "email": "pavel.nowak@geoteam.example", "manager_id": "u015" },
+
+  { "id": "u032", "name": "Nadav Heler", "email": "nadav.heler@geoteam.example", "manager_id": null },
+  { "id": "u033", "name": "Lior Ozan", "email": "lior.ozan@geoteam.example", "manager_id": null },
+  { "id": "u034", "name": "Eitam Zivan", "email": "eitam.zivan@geoteam.example", "manager_id": null }
 ]

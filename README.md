@@ -35,6 +35,21 @@ permission model, delegation rule) that must not silently drift.
 
 ## Quick start (Phase 1 — in-memory, no DB setup)
 
+Run backend and frontend in two separate terminals, both from the repo root
+(`Premissions/`) — no `cd` needed:
+
+```bash
+# Terminal 1 — backend (http://localhost:8000)
+backend/.venv/Scripts/python.exe -m uvicorn permissions_server.main:app --reload --app-dir backend/src
+
+# Terminal 2 — frontend (http://localhost:5173)
+npm --prefix frontend run dev
+```
+
+Then open `http://localhost:5173` and mock-login as a user. See the subsections below
+for first-time setup details, and "Running with PostgreSQL" if `backend/.env` sets
+`PERMISSIONS_DATABASE_URL` (Postgres must be up first in that case).
+
 ### Backend
 
 ```bash
