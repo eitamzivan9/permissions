@@ -52,8 +52,15 @@ from day one.
 
 ## Confirmed decisions (do not re-litigate)
 
-- **Visibility**: universal — the catalog shows every resource to every user, not just
-  ones they can access (deliberate departure from the reference docs' whitelist model).
+- **Visibility**: universal for team/shared resources — the catalog shows every
+  non-personal resource to every user, not just ones they can access (deliberate
+  departure from the reference docs' whitelist model). **Narrowed 2026-07-31**: another
+  user's personal workspace (and everything inside it) IS hidden from a caller who
+  can't reach any of it — see "Restrictions (whitelist)" below for the unrelated
+  access-gating mechanism, and `CatalogService._is_hidden_other_personal_workspace()`
+  for this visibility carve-out. Separately, a `Restriction` mechanism gates *access*
+  (not visibility) — this was a later, explicitly confirmed reversal of the
+  "no restrict/unrestrict mechanism" half of this same departure.
 - **Delegation rule**: actor's *effective* role at the target resource must be Manager
   or Admin (Manager may only grant Editor/Viewer, never Manager/Admin); for **user**
   grantees, the actor must additionally be transitively above the target user in the
@@ -138,7 +145,9 @@ Premissions/
 │   │   │   ├── errors.py              # DomainError, NotFoundError, UnauthorizedError, ForbiddenError, ConflictError
 │   │   │   └── ports/
 │   │   │       ├── entity_repository.py       # Page[T] + EntityRepository[T] Protocol (get_by_id, list_page)
-│   │   │       ├── resource_repository.py      # +children_of, path_to_root, list_by_type, create, set_inherits_from_parent
+│   │   │       ├── resource_repository.py      # +children_of, path_to_root, list_by_type, create(+owner_id),
+│   │   │       │                                # set_inherits_from_parent, find_workspace_by_owner, move
+│   │   │       ├── restriction_repository.py     # mirrors grant_repository.py + list_restrictions_for_resource_ids (bulk, path-wide)
 │   │   │       ├── team_repository.py           # +list_members, list_teams_for_user, add/remove_member, create
 │   │   │       ├── grant_repository.py           # get_grant, list_grants_for_resource/grantees, upsert_grant, delete_grant
 │   │   │       ├── system_role_repository.py     # list_system_roles, grant_system_role
@@ -147,9 +156,12 @@ Premissions/
 │   │   │       ├── user_directory.py             # get_user, list_users, search_users
 │   │   │       └── org_hierarchy.py              # is_manager_of(a,b) transitive, subordinates_of(a)
 │   │   ├── application/
-│   │   │   ├── access_resolver.py             # effective_role, nearest_grants, snapshot_for_user — single source of truth
-│   │   │   ├── permission_grant_service.py    # can_manage (delegation rule), grant/revoke (+audit), list_manageable_users
-│   │   │   ├── audit_service.py               # record_grant/record_role_change/record_revoke, history_for_resource/actor
+│   │   │   ├── access_resolver.py             # effective_role, nearest_grants, nearest_restriction, snapshot_for_user — single source of truth
+│   │   │   ├── delegation_rules.py             # grantee_passes_org_chart_check + is_within_actors_personal_workspace — shared by grants+restrictions
+│   │   │   ├── permission_grant_service.py    # can_manage (delegation rule), grant/revoke (+audit), list_manageable_users, bootstrap_admin_grant
+│   │   │   ├── restriction_service.py         # can_set_restriction (Admin-only), set/revoke_restriction (+audit)
+│   │   │   ├── resource_service.py            # create_child, get_or_create_my_workspace, create_team_workspace, move
+│   │   │   ├── audit_service.py               # record_grant/role_change/revoke + record_restrict/unrestrict/restriction_role_change
 │   │   │   ├── access_transparency_service.py # explain_access, my_access, check_access
 │   │   │   ├── catalog_service.py             # full resource tree annotated per-caller, + external "my maps" view
 │   │   │   └── auth_service.py                 # mock-login, "who am I"
@@ -157,7 +169,8 @@ Premissions/
 │   │   │   ├── seed_data.py               # THE mock resource tree + Teams/memberships — single source
 │   │   │   ├── memory/
 │   │   │   │   ├── in_memory_entity_repository.py   # generic base: shared dict-backed get/list/search
-│   │   │   │   ├── in_memory_resource_repository.py  # ResourceRepository impl, seeded from seed_data.py
+│   │   │   │   ├── in_memory_resource_repository.py  # ResourceRepository impl (+owner_id, find_workspace_by_owner, move), seeded from seed_data.py
+│   │   │   │   ├── in_memory_restriction_repository.py # mirrors in_memory_grant_repository.py + bulk-by-ids
 │   │   │   │   ├── in_memory_team_repository.py
 │   │   │   │   ├── in_memory_grant_repository.py       # keyed by (Grantee, resource_id)
 │   │   │   │   ├── in_memory_system_role_repository.py
@@ -165,7 +178,7 @@ Premissions/
 │   │   │   ├── db/                      # Postgres engine/session/ORM models (SQLAlchemy)
 │   │   │   │   ├── types.py               # Ltree TypeDecorator + sanitize_label() for resources.path
 │   │   │   │   ├── base.py                # DeclarativeBase
-│   │   │   │   ├── models.py              # ResourceModel/TeamModel/TeamMembershipModel/PermissionGrantModel/SystemRoleModel/AuditLogModel
+│   │   │   │   ├── models.py              # ResourceModel(+owner_id)/TeamModel/TeamMembershipModel/PermissionGrantModel/RestrictionModel/SystemRoleModel/AuditLogModel
 │   │   │   │   └── session.py             # build_engine_and_sessionmaker(database_url)
 │   │   │   └── auth/
 │   │   │       ├── _mock_users_fixture.py    # small representative fixture (~30-50 users, 3+ hierarchy levels)
@@ -175,7 +188,8 @@ Premissions/
 │   │   │       └── adfs_auth_mock_validator.py # TokenValidator, wraps adfs_auth.testing.MockTokenValidator + UserDirectory
 │   │   ├── repositories/                # SQLAlchemy repos — one per domain.ports Protocol, mirrors infrastructure/memory/
 │   │   │   ├── _pagination.py             # shared count+offset+limit helper (resource/team/audit-log repos)
-│   │   │   ├── sqlalchemy_resource_repository.py  # path_to_root via one ltree containment query, not O(depth)
+│   │   │   ├── sqlalchemy_resource_repository.py  # path_to_root via one ltree containment query; move() rewrites descendant paths in one statement
+│   │   │   ├── sqlalchemy_restriction_repository.py # mirrors sqlalchemy_grant_repository.py, reuses its grantee_key()
 │   │   │   ├── sqlalchemy_team_repository.py
 │   │   │   ├── sqlalchemy_grant_repository.py     # grantee_key() — collision-safe dict-key equivalent for nullable user_id/team_id
 │   │   │   ├── sqlalchemy_system_role_repository.py
@@ -183,11 +197,13 @@ Premissions/
 │   │   └── api/
 │   │       ├── deps.py                # DI providers; repos are app.state singletons built once at startup
 │   │       ├── error_handlers.py      # maps domain/errors.py -> HTTP status codes
-│   │       ├── schemas/{auth,catalog,grant,team,access,audit}_schemas.py
+│   │       ├── schemas/{auth,catalog,grant,restriction,resource,team,access,audit}_schemas.py
 │   │       └── routers/
-│   │           ├── auth_router.py       # /auth
+│   │           ├── auth_router.py       # /auth — /auth/me now returns system_roles too (MeOut)
 │   │           ├── catalog_router.py    # /catalog
 │   │           ├── grants_router.py     # /grants — one PUT + DELETE pair, grantee_type is a path param
+│   │           ├── restrictions_router.py # /restrictions — same {resource_id}/{grantee_type}/{grantee_id} shape, Admin-only
+│   │           ├── resources_router.py  # /resources — my-workspace, workspaces (SUPER_EDITOR-only), create child, move
 │   │           ├── teams_router.py      # /teams
 │   │           ├── access_router.py     # /access — permission transparency
 │   │           ├── audit_router.py      # /audit
@@ -197,7 +213,17 @@ Premissions/
 │   ├── .env                           # PERMISSIONS_DATABASE_URL (git-ignored, local-only; unset = in-memory mode)
 │   └── tests/{unit,integration}/{conftest.py,...}  # conftest.py force-unsets database_url so tests stay in-memory
 └── frontend/
-    └── src/{pages,components,api,auth}/  # Login, Permissions pages; typed API client; AuthContext (sessionStorage-backed)
+    └── src/
+        ├── pages/{Login,Permissions}.tsx
+        ├── components/
+        │   ├── ResourceNode.tsx           # recursive tree node — "+ Create" (Editor+), "Manage access" (can_manage), "Restrictions" (Admin)
+        │   ├── ManageAccessModal.tsx       # ordinary grants
+        │   ├── RestrictionsModal.tsx       # whitelist — same shell/pattern as ManageAccessModal
+        │   ├── CreateResourceModal.tsx     # child creation under a parent the caller can edit
+        │   ├── CreateTeamWorkspaceModal.tsx # SUPER_EDITOR-only, picks the initial admin
+        │   └── RoleBadge.tsx
+        ├── api/client.ts                   # sole typed backend-communication module
+        └── auth/AuthContext.tsx            # resolves identity via /auth/me, fire-and-forget get-or-create my-workspace
 ```
 
 **Still not built**: a real `domain/ports/token_validator.py`/`token_issuer.py`
@@ -220,8 +246,15 @@ replacing `seed_data.py` as the source of truth.
 - **`Team`**: id/name only; membership is separate mutable state in
   `TeamRepository`, not baked into the frozen entity.
 - **`PermissionGrant`**: `(grantee, resource_id, role, granted_by)`.
-- **`AuditAction`**: `GRANT` / `ROLE_CHANGE` / `REVOKE`. `AuditLogEntry` is
-  append-only.
+- **`Restriction`**: same `(grantee, resource_id, role, granted_by)` shape as
+  `PermissionGrant`, but a distinct dataclass — meaning the opposite thing (an
+  exclusive whitelist gate, not an additive grant). Admin-only to set/revoke. See
+  "Restrictions (whitelist)" below.
+- **`Resource.owner_id: str | None`** — set only on a lazily-created personal
+  workspace (`ResourceRepository.find_workspace_by_owner()`); `None` for every other
+  resource, including team workspaces.
+- **`AuditAction`**: `GRANT` / `ROLE_CHANGE` / `REVOKE` / `RESTRICT` / `UNRESTRICT` /
+  `RESTRICTION_ROLE_CHANGE`. `AuditLogEntry` is append-only.
 
 ## Core services
 
@@ -234,24 +267,69 @@ replacing `seed_data.py` as the source of truth.
   top and breaks ties among multiple grants at the winning node by highest rank.
 - **`PermissionGrantService`** — `can_manage()` implements the delegation rule
   end-to-end (role-rank for both grantee kinds, plus the org-chart check for user
-  grantees only); `grant()`/`revoke()` always re-check `can_manage` server-side, then
-  write, then record to `AuditService` (`GRANT` for a new grantee+resource pair,
-  `ROLE_CHANGE` when an existing grant's role changes, nothing for a same-role no-op);
-  `list_manageable_users()` powers the "grant to whom" picker via
-  `org_hierarchy.subordinates_of()`.
+  grantees only, via the shared `delegation_rules.grantee_passes_org_chart_check()`);
+  `grant()`/`revoke()` always re-check `can_manage` server-side, then write, then
+  record to `AuditService` (`GRANT` for a new grantee+resource pair, `ROLE_CHANGE` when
+  an existing grant's role changes, nothing for a same-role no-op);
+  `list_manageable_users(actor, resource_id=None)` powers the "grant to whom" picker —
+  ordinarily `org_hierarchy.subordinates_of()`, but returns every user when
+  `resource_id` is inside the actor's own personal workspace (see `delegation_rules.py`
+  below); `bootstrap_admin_grant(actor, target_user_id, resource_id)` writes an
+  unconditional Admin grant, bypassing `can_manage` (inapplicable — no other admin can
+  exist on a brand-new resource yet), used by every resource-creation flow so the
+  write+audit code isn't duplicated per flow.
+- **`delegation_rules.py`** — `grantee_passes_org_chart_check()`: the one place the
+  "Team grantees skip the org-chart check; User grantees need
+  `OrgHierarchy.is_manager_of()`, unless the resource is inside the actor's own
+  personal workspace" logic lives, shared by `PermissionGrantService.can_manage` and
+  `RestrictionService.can_set_restriction` so they can't drift apart.
 - **`AuditService`** — thin, focused wrapper around `AuditLogRepository`; a separate
   collaborator from `PermissionGrantService` because "record what happened" is a
-  different reason to change than "decide if it's allowed."
+  different reason to change than "decide if it's allowed." Also records
+  `RESTRICT`/`UNRESTRICT`/`RESTRICTION_ROLE_CHANGE` for `RestrictionService`.
+- **`RestrictionService`** — Admin-only (never Manager) `set_restriction`/
+  `revoke_restriction`; `can_set_restriction` requires the actor's own current
+  (restriction-aware) `effective_role` be exactly Admin, plus the same
+  `delegation_rules` org-chart check as grants. No self-lockout guard — an Admin
+  restricting a resource without listing themselves can legitimately lose access.
+- **`ResourceService`** — orchestrates all resource creation and move, each
+  validate → authorize → write → auto-grant: `create_child` (Editor+ at parent, new
+  resource's creator auto-granted Admin), `get_or_create_my_workspace` (any
+  authenticated user, idempotent, keyed by `owner_id`), `create_team_workspace`
+  (`SUPER_EDITOR`-only, grants the caller-specified `admin_user_id`, not necessarily
+  the caller), `move` (Admin at source + Editor+ at destination, rejects moving into
+  own subtree via `path_to_root`).
 - **`AccessTransparencyService`** — `explain_access()` returns every contributing
-  `AccessSource` (system role or grant) at the nearest ancestor with any grant, with
-  `is_effective` marking the winner; `my_access` exposes this ungated for the caller's
-  own access; `check_access` gates inspecting someone else's access on Manager+ (or a
-  system role).
+  `AccessSource` (system role, restriction entry, or grant) at the nearest ancestor
+  with any grant/restriction, with `is_effective` marking the winner; `my_access`
+  exposes this ungated for the caller's own access; `check_access` gates inspecting
+  someone else's access on Manager+ (or a system role).
 - **`CatalogService`** — builds the paginated, searchable **full** resource tree:
   `get_catalog()` (search or top-level Workspaces, each node annotated with
   `effective_role`, `can_manage`, and `can_fetch` — the last bubbling up from
   descendants) and `get_external_access()` (flat Map-only view, reusing the same
-  `can_fetch` bubbling to decide which maps a caller can reach).
+  `can_fetch` bubbling to decide which maps a caller can reach). No-search only: the
+  caller's own personal workspace, if one exists, is always pinned first via
+  `ResourceRepository.list_by_type(..., pinned_id=...)` — a real total order over the
+  full Workspace set (not a page-1-only splice), so it's stable across pagination.
+  Both branches also filter out another user's personal workspace when the caller's
+  `can_fetch` there is false (confirmed 2026-07-31) — the one exception to universal
+  visibility; `total`/`page` still reflect the unfiltered universe, same pattern as
+  `get_external_access`'s existing "may return fewer than page_size" behavior.
+
+## Restrictions (whitelist)
+
+A later pass (`instructions/new-guide-he.txt`) added a whitelist mechanism that
+**reverses part of** the "universal visibility, no restrict mechanism" decision below
+— confirmed directly with the user ("what i wrote is what decide, not claude.md").
+What did NOT change: resource *visibility* (name/position in the catalog) is still
+universal; only *access* (`effective_role`) is gated. `AccessResolver.effective_role()`
+precedence, in order: (1) `SUPER_EDITOR` bypasses unconditionally; (2) a restriction at
+the nearest ancestor (inclusive) with any restriction row gates completely — an
+unlisted grantee gets `None` regardless of any grant they hold, even Admin; (3)
+otherwise, ordinary grant resolution. `SUPER_VIEWER` also bypasses restrictions
+(checked right after `SUPER_EDITOR`, before step 2 even runs) — confirmed 2026-07-31,
+resolves to Viewer instead of Admin.
 
 ## Postgres persistence (done)
 
@@ -303,12 +381,19 @@ needed zero changes (DIP in action).
 |---|---|---|---|
 | GET | `/auth/mock-users` | none | list pickable mock identities for the login screen |
 | POST | `/auth/login` | none | mock ADFS: issue an HS256 JWT for the chosen mock user |
-| GET | `/auth/me` | Bearer | current user's name/email for the page header |
+| GET | `/auth/me` | Bearer | current user's name/email + `system_roles` for the page header and superuser-gated UI |
 | GET | `/catalog?q=&page=&page_size=` | Bearer | **every** resource, annotated with `effective_role`/`can_manage`/`can_fetch`, paginated, searchable by name at any depth |
-| GET | `/grants/manageable-users` | Bearer | subordinates the caller may grant to |
+| GET | `/grants/manageable-users?resource_id=` | Bearer | subordinates the caller may grant to; every user instead, if `resource_id` is inside the caller's own personal workspace |
 | GET | `/grants/{resource_id}` | Bearer | list grants directly on a resource |
 | PUT | `/grants/{resource_id}/{grantee_type}/{grantee_id}` | Bearer | set/change a grant — `grantee_type` is `user` or `team`; body `{role}` |
 | DELETE | `/grants/{resource_id}/{grantee_type}/{grantee_id}` | Bearer | remove a grant row |
+| GET | `/restrictions/{resource_id}` | Bearer, Admin+ | list restriction (whitelist) rows directly on a resource |
+| PUT | `/restrictions/{resource_id}/{grantee_type}/{grantee_id}` | Bearer, Admin+ | add/change a whitelist entry; body `{role}` |
+| DELETE | `/restrictions/{resource_id}/{grantee_type}/{grantee_id}` | Bearer, Admin+ | remove a whitelist entry |
+| GET | `/resources/my-workspace` | Bearer | get-or-create the caller's personal workspace |
+| POST | `/resources/workspaces` | Bearer, `SUPER_EDITOR` only | create a team workspace; body `{name, admin_user_id}` |
+| POST | `/resources` | Bearer, Editor+ at parent | create a child resource; body `{type, name, parent_id}` |
+| PATCH | `/resources/{resource_id}/move` | Bearer, Admin at source + Editor+ at destination | reparent a resource; body `{new_parent_id}` |
 | GET | `/teams` | Bearer | list Teams |
 | POST | `/teams` | Bearer | create a Team |
 | GET | `/teams/{team_id}/members` | Bearer | list a Team's members |
@@ -333,12 +418,17 @@ whatever real grants already exist in Postgres.
 
 ## Known gaps vs. the reference design docs (tracked, not silently fixed)
 
-- Universal visibility instead of the docs' whitelist-only model — deliberate,
-  confirmed (see `CLAUDE.md`).
-- No `restrict`/`unrestrict` mechanism or corresponding audit actions — follows from
-  the visibility departure above.
-- No API surface to create resources or toggle `inherits_from_parent` yet — Phase 1
-  has no resource-admin endpoints at all; only exercised via the repository directly.
+- Universal *visibility* instead of the docs' whitelist-only model — deliberate,
+  confirmed, still true (see `CLAUDE.md`). Resource names/positions always show; only
+  *access* can now be gated.
+- A `Restriction`/whitelist *access* mechanism now exists (see "Restrictions
+  (whitelist)" above) — this supersedes the earlier "no restrict/unrestrict mechanism"
+  note, confirmed directly with the user. Both system-wide roles (`SUPER_EDITOR` and
+  `SUPER_VIEWER`) bypass it, confirmed 2026-07-31.
+- Resource *creation* (child resources, personal workspaces, team workspaces, move) is
+  fully built — see "Resource creation, personal & team workspaces, move" above. What's
+  still missing: no API route to toggle `inherits_from_parent` on an existing
+  resource — only exercised via the repository directly.
 
 ## Build sequence (current state: Phase 1 + Phase 2 storage complete and passing)
 
@@ -347,7 +437,18 @@ Phase 1 is built and green: `domain/entities.py` + all `domain/ports/*.py` →
 `application/*` services (heaviest coverage on `AccessResolver`'s inheritance climb and
 `PermissionGrantService`'s delegation rule) → `api/deps.py` DI wiring + all 7 routers +
 `main.py` → frontend (Vite+TS+Tailwind, typed API client, `AuthContext`, login +
-main + manage-access pages). 79 backend tests passing (`pytest`).
+main + manage-access pages).
+
+**Resource creation, restrictions, personal/team workspaces, move** (later addition,
+built and green): `Restriction` dataclass + `RestrictionRepository` port +
+in-memory/SQLAlchemy impls → `AccessResolver` grows `nearest_restriction()` +
+restriction-aware `effective_role()` precedence → `delegation_rules.py` (shared
+org-chart + personal-workspace-bypass check) → `RestrictionService` +
+`ResourceService` (`bootstrap_admin_grant` added to `PermissionGrantService`) →
+`resources_router.py` + `restrictions_router.py` + matching schemas → frontend
+`CreateResourceModal.tsx`, `CreateTeamWorkspaceModal.tsx`, `RestrictionsModal.tsx`,
+`isSuperEditor`/`Me` in `client.ts`. 116 of 118 backend tests passing (`pytest`) — the
+2 failures are pre-existing and unrelated (mock-user-fixture row count, not this work).
 
 **Phase 2 storage is built and verified** against a real local PostgreSQL 18 install:
 `sqlalchemy[asyncio]` + `asyncpg` + `alembic` added → `infrastructure/db/`

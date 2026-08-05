@@ -14,6 +14,10 @@ async def client():
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            # No HTTP endpoint grants system roles (same as production) — tests
+            # that need a SUPER_EDITOR/SUPER_VIEWER seed it directly here, the
+            # same way unit tests seed it directly on system_role_repo.
+            ac.app_state = app.state  # type: ignore[attr-defined]
             yield ac
 
 

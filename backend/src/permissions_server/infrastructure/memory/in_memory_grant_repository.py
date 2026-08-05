@@ -36,3 +36,9 @@ class InMemoryGrantRepository:
 
     async def delete_grant(self, grantee: Grantee, resource_id: str) -> None:
         self._grants.pop(self._key(grantee, resource_id), None)
+
+    async def delete_grants_for_resource_ids(self, resource_ids: list[str]) -> None:
+        ids = set(resource_ids)
+        for key, grant in list(self._grants.items()):
+            if grant.resource_id in ids:
+                del self._grants[key]

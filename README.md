@@ -30,38 +30,62 @@ permission model, delegation rule) that must not silently drift.
 - Node.js (for the Vite frontend)
 - The `adfs-auth` library checked out at `C:\Users\Eitam\adfs-auth` (installed as a
   path dependency — see `backend/pyproject.toml`)
-- PostgreSQL 18 (only if running in Phase 2 / Postgres-backed mode — not required for
-  everyday dev)
+- PostgreSQL 18 — required for everyday dev; this project always runs in DB mode, not
+  in-memory
 
-## Quick start (Phase 1 — in-memory, no DB setup)
+## Quick start (always DB/Postgres mode)
 
-Run backend and frontend in two separate terminals, both from the repo root
-(`Premissions/`) — no `cd` needed:
+Always run against Postgres, not in-memory — `backend/.env` already sets
+`PERMISSIONS_DATABASE_URL` for this. `Settings.env_file` is resolved relative to the
+process's **current working directory**, not the file's location, so the backend must
+be started from inside `backend/` or it silently misses `backend/.env` and falls back
+to in-memory mode. Two terminals, one line each, from the repo root (`Premissions/`):
 
 ```bash
-# Terminal 1 — backend (http://localhost:8000)
-backend/.venv/Scripts/python.exe -m uvicorn permissions_server.main:app --reload --app-dir backend/src
+# Terminal 1 — backend, DB mode (http://localhost:8000) — Git Bash
+cd backend && .venv/Scripts/python.exe -m uvicorn permissions_server.main:app --reload
 
 # Terminal 2 — frontend (http://localhost:5173)
 npm --prefix frontend run dev
 ```
 
-Then open `http://localhost:5173` and mock-login as a user. See the subsections below
-for first-time setup details, and "Running with PostgreSQL" if `backend/.env` sets
-`PERMISSIONS_DATABASE_URL` (Postgres must be up first in that case).
+PowerShell doesn't support `&&` as a statement separator — use `;` instead:
+
+```powershell
+# Terminal 1 — backend, DB mode (http://localhost:8000) — PowerShell
+cd backend; .venv/Scripts/python.exe -m uvicorn permissions_server.main:app --reload
+
+# Terminal 2 — frontend (http://localhost:5173)
+npm --prefix frontend run dev
+```
+
+Then open `http://localhost:5173` and mock-login as a user. See "Running with
+PostgreSQL" below for one-time setup (`alembic upgrade head`, `scripts/seed.py`) if you
+haven't already applied migrations and seeded data.
 
 ### Backend
+
+First-time setup:
 
 ```bash
 cd backend
 python -m venv .venv
 source .venv/Scripts/activate   # Git Bash on Windows
 pip install -e ".[dev]"
+```
+
+Set `PERMISSIONS_DATABASE_URL` in `backend/.env` (see "Running with PostgreSQL" below),
+apply migrations, and seed data — then run it:
+
+```bash
+alembic upgrade head
+python scripts/seed.py
 uvicorn permissions_server.main:app --reload
 ```
 
-Runs at `http://localhost:8000` with `PERMISSIONS_DATABASE_URL` unset, so it uses
-in-memory repositories — nothing to configure.
+Runs at `http://localhost:8000` using Postgres via SQLAlchemy — always start this from
+inside `backend/` (not the repo root), since `PERMISSIONS_DATABASE_URL` is read from
+`backend/.env`, resolved relative to the current working directory.
 
 ### Frontend
 
@@ -79,7 +103,7 @@ Open `http://localhost:5173`, mock-login as a user, and browse the catalog. The 
 user with no manager (`u001`) is bootstrapped with Admin on every top-level Workspace
 so there's someone able to grant access from a cold start.
 
-## Running with PostgreSQL (Phase 2 storage)
+## Running with PostgreSQL (one-time setup)
 
 1. Create a local database and set `PERMISSIONS_DATABASE_URL` in `backend/.env`
    (git-ignored), e.g.:
@@ -145,4 +169,9 @@ the full file guide.
 - Resource tree is static mock data (`infrastructure/seed_data.py`), not synced from a
   real source-of-truth system.
 - Org hierarchy is a small JSON-derived fixture, not a real AD/ADFS source.
-- No resource-admin API (create resources, toggle `inherits_from_parent`) exists yet.
+- Resource creation (personal workspaces, team workspaces, child resources, move) has
+  full API + frontend coverage; toggling `inherits_from_parent` on an existing resource
+  still has no API route.
+- A `Restriction`/whitelist mechanism exists to gate access at Admin's discretion (see
+  `CLAUDE.md`'s "Restrictions (whitelist gate)"); both `SUPER_EDITOR` and
+  `SUPER_VIEWER` bypass it.

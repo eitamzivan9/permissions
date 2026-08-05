@@ -19,6 +19,18 @@ export interface MockUser {
   email: string;
 }
 
+export type SystemRole = "super_editor" | "super_viewer";
+
+// Only /auth/me returns this (who am I + my system-wide roles) — every other
+// user-listing endpoint returns a plain MockUser.
+export interface Me extends MockUser {
+  system_roles: SystemRole[];
+}
+
+export function isSuperEditor(user: Me | null): boolean {
+  return user !== null && user.system_roles.includes("super_editor");
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -73,6 +85,65 @@ export interface DeleteGrantParams {
   resourceId: string;
   granteeType: GranteeType;
   granteeId: string;
+}
+
+// Same shape as Grant, but a Restriction means the opposite thing: an
+// explicit whitelist. The moment any restriction row exists on a resource
+// (at any level up the tree), only grantees listed there keep access —
+// admin-only to set.
+export interface Restriction {
+  grantee_type: GranteeType;
+  user_id: string | null;
+  team_id: string | null;
+  resource_id: string;
+  role: Role;
+  granted_by: string;
+}
+
+export interface SetRestrictionParams {
+  resourceId: string;
+  granteeType: GranteeType;
+  granteeId: string;
+  role: Role;
+}
+
+export interface DeleteRestrictionParams {
+  resourceId: string;
+  granteeType: GranteeType;
+  granteeId: string;
+}
+
+// One shape for every level of the resource tree, mirroring the backend's
+// Resource entity (owner_id is set only on a lazily-created personal workspace).
+export interface Resource {
+  id: string;
+  type: ResourceType;
+  name: string;
+  parent_id: string | null;
+  inherits_from_parent: boolean;
+  owner_id: string | null;
+}
+
+export interface CreateResourceParams {
+  type: ResourceType;
+  name: string;
+  parentId: string;
+}
+
+export interface CreateTeamWorkspaceParams {
+  name: string;
+  adminUserId: string;
+}
+
+export interface MoveResourceParams {
+  resourceId: string;
+  newParentId: string;
+}
+
+const ROLE_RANK: Record<Role, number> = { viewer: 1, editor: 2, manager: 3, admin: 4 };
+
+export function roleAtLeast(role: Role | null, threshold: Role): boolean {
+  return role !== null && ROLE_RANK[role] >= ROLE_RANK[threshold];
 }
 
 // ---------------------------------------------------------------------------
@@ -192,8 +263,8 @@ export function login(userId: string): Promise<LoginResponse> {
   });
 }
 
-export function getMe(): Promise<MockUser> {
-  return request<MockUser>("/auth/me");
+export function getMe(): Promise<Me> {
+  return request<Me>("/auth/me");
 }
 
 // ---------------------------------------------------------------------------
@@ -213,8 +284,9 @@ export function getCatalog(params: GetCatalogParams = {}): Promise<CatalogPage> 
 // Grants endpoints
 // ---------------------------------------------------------------------------
 
-export function getManageableUsers(): Promise<MockUser[]> {
-  return request<MockUser[]>("/grants/manageable-users");
+export function getManageableUsers(resourceId?: string): Promise<MockUser[]> {
+  const qs = buildQueryString({ resource_id: resourceId });
+  return request<MockUser[]>(`/grants/manageable-users${qs}`);
 }
 
 export function getGrantsForResource(resourceId: string): Promise<Grant[]> {
@@ -235,10 +307,68 @@ export function deleteGrant(params: DeleteGrantParams): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Restrictions endpoints (Admin-only whitelist gate — see Restriction above)
+// ---------------------------------------------------------------------------
+
+export function getRestrictionsForResource(resourceId: string): Promise<Restriction[]> {
+  return request<Restriction[]>(`/restrictions/${resourceId}`);
+}
+
+export function setRestriction(params: SetRestrictionParams): Promise<Restriction> {
+  return request<Restriction>(
+    `/restrictions/${params.resourceId}/${params.granteeType}/${params.granteeId}`,
+    { method: "PUT", body: JSON.stringify({ role: params.role }) },
+  );
+}
+
+export function deleteRestriction(params: DeleteRestrictionParams): Promise<void> {
+  return request<void>(
+    `/restrictions/${params.resourceId}/${params.granteeType}/${params.granteeId}`,
+    { method: "DELETE" },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Teams endpoint (read-only from the UI's side — grants can target an
 // existing Team; creating/managing Team membership isn't part of UI scope)
 // ---------------------------------------------------------------------------
 
 export function listTeams(): Promise<Team[]> {
   return request<Team[]>("/teams");
+}
+
+// ---------------------------------------------------------------------------
+// Resources endpoints
+// ---------------------------------------------------------------------------
+
+export function getMyWorkspace(): Promise<Resource> {
+  return request<Resource>("/resources/my-workspace");
+}
+
+export function createTeamWorkspace(params: CreateTeamWorkspaceParams): Promise<Resource> {
+  return request<Resource>("/resources/workspaces", {
+    method: "POST",
+    body: JSON.stringify({ name: params.name, admin_user_id: params.adminUserId }),
+  });
+}
+
+export function createResource(params: CreateResourceParams): Promise<Resource> {
+  return request<Resource>("/resources", {
+    method: "POST",
+    body: JSON.stringify({ type: params.type, name: params.name, parent_id: params.parentId }),
+  });
+}
+
+export function moveResource(params: MoveResourceParams): Promise<Resource> {
+  return request<Resource>(`/resources/${params.resourceId}/move`, {
+    method: "PATCH",
+    body: JSON.stringify({ new_parent_id: params.newParentId }),
+  });
+}
+
+// Admin-only. Deletes resourceId AND its entire subtree, along with every
+// grant/restriction anywhere in it — irreversible, no confirmation at this
+// layer (the caller must confirm before calling this).
+export function deleteResource(resourceId: string): Promise<void> {
+  return request<void>(`/resources/${resourceId}`, { method: "DELETE" });
 }

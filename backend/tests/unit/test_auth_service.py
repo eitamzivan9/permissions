@@ -17,8 +17,3 @@ async def test_login_issues_a_token_that_resolves_to_the_right_user(auth_service
 async def test_login_unknown_user_raises_not_found(auth_service):
     with pytest.raises(NotFoundError):
         await auth_service.login("does-not-exist")
-
-
-async def test_list_mock_users_returns_full_roster(auth_service):
-    users = await auth_service.list_mock_users()
-    assert len(users) == 31

@@ -1,14 +1,6 @@
 from tests.integration.conftest import auth_headers, login_as
 
 
-async def test_list_mock_users_needs_no_auth(client):
-    resp = await client.get("/auth/mock-users")
-    assert resp.status_code == 200
-    users = resp.json()
-    assert len(users) == 31
-    assert {"id", "name", "email"} <= users[0].keys()
-
-
 async def test_login_then_me_round_trip(client):
     token = await login_as(client, "u001")
     resp = await client.get("/auth/me", headers=auth_headers(token))

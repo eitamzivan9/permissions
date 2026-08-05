@@ -54,8 +54,11 @@ async def list_manageable_users(
     permission_grant_service: Annotated[
         PermissionGrantService, Depends(get_permission_grant_service)
     ],
+    resource_id: str | None = None,
 ) -> list[MockUserOut]:
-    users = await permission_grant_service.list_manageable_users(current_user)
+    users = await permission_grant_service.list_manageable_users(
+        current_user, resource_id=resource_id
+    )
     return [MockUserOut(id=u.id, name=u.name, email=u.email) for u in users]
 
 

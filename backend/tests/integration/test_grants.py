@@ -49,6 +49,27 @@ async def test_grant_without_manager_role_is_forbidden(client):
     assert resp.status_code == 403
 
 
+async def test_personal_workspace_owner_can_grant_to_a_non_subordinate(client):
+    """The org-chart delegation check exists for shared resources managed by
+    reporting-line authority; it doesn't fit a user's own personal sandbox,
+    where the owner should be able to invite anyone. NOT_VP_SUBORDINATE is
+    deliberately not VP's subordinate elsewhere in this file."""
+    token = await login_as(client, VP)
+    workspace = await client.get("/resources/my-workspace", headers=auth_headers(token))
+    assert workspace.status_code == 200
+    workspace_id = workspace.json()["id"]
+
+    resp = await _grant_user(client, token, workspace_id, NOT_VP_SUBORDINATE, "editor")
+    assert resp.status_code == 200
+
+    manageable = await client.get(
+        "/grants/manageable-users",
+        headers=auth_headers(token),
+        params={"resource_id": workspace_id},
+    )
+    assert NOT_VP_SUBORDINATE in {u["id"] for u in manageable.json()}
+
+
 async def test_root_can_delegate_then_vp_can_delegate_to_own_subordinate(client):
     root_token = await login_as(client, ROOT)
     resp = await _grant_user(client, root_token, MAP_ID, VP, "manager")

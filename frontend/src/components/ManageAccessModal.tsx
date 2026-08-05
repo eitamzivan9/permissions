@@ -42,7 +42,7 @@ export default function ManageAccessModal({
   function loadAll() {
     setIsLoading(true);
     setLoadError(null);
-    Promise.all([getManageableUsers(), listTeams(), getGrantsForResource(resourceId)])
+    Promise.all([getManageableUsers(resourceId), listTeams(), getGrantsForResource(resourceId)])
       .then(([fetchedUsers, fetchedTeams, fetchedGrants]) => {
         setUsers(fetchedUsers);
         setTeams(fetchedTeams);

@@ -67,5 +67,21 @@
   "65": "Role",
   "66": "AccessTransparencyService",
   "67": "check_access",
-  "68": ".__init__"
+  "68": ".__init__",
+  "69": "TeamModel",
+  "70": "SystemRoleModel",
+  "71": "AuthContext.tsx",
+  "72": "RestrictionService",
+  "73": "lifespan",
+  "74": "InMemorySystemRoleRepository",
+  "75": "Ltree",
+  "76": "audit_for_resource",
+  "77": "RoleBadge.tsx",
+  "78": "0002_owner_restrictions.py",
+  "79": "get_catalog",
+  "80": "AccessTransparencyService",
+  "81": "RestrictionService",
+  "84": "paginate",
+  "85": "register_error_handlers",
+  "86": ".__init__"
 }

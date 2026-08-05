@@ -40,10 +40,12 @@ class ResourceModel(Base):
     )
     inherits_from_parent: Mapped[bool] = mapped_column(nullable=False, default=True)
     path: Mapped[str] = mapped_column(Ltree, nullable=False)
+    owner_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (
         Index("ix_resources_parent_id", "parent_id"),
         Index("ix_resources_path", "path", postgresql_using="gist"),
+        Index("ix_resources_owner_id", "owner_id"),
     )
 
 
@@ -83,6 +85,30 @@ class PermissionGrantModel(Base):
     __table_args__ = (
         UniqueConstraint("grantee_key", "resource_id", name="uq_grant_grantee_resource"),
         Index("ix_permission_grants_resource_id", "resource_id"),
+    )
+
+
+class RestrictionModel(Base):
+    __tablename__ = "restrictions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: uuid.uuid4().hex)
+    grantee_type: Mapped[GranteeType] = mapped_column(_enum(GranteeType), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    team_id: Mapped[str | None] = mapped_column(ForeignKey("teams.id"), nullable=True)
+    resource_id: Mapped[str] = mapped_column(ForeignKey("resources.id"), nullable=False)
+    role: Mapped[Role] = mapped_column(_enum(Role), nullable=False)
+    granted_by: Mapped[str] = mapped_column(String, nullable=False)
+
+    # Same grantee_key technique as PermissionGrantModel, and for the same
+    # reason — a plain composite UNIQUE across nullable user_id/team_id
+    # columns doesn't reliably catch duplicates.
+    grantee_key: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "grantee_key", "resource_id", name="uq_restriction_grantee_resource"
+        ),
+        Index("ix_restrictions_resource_id", "resource_id"),
     )
 
 

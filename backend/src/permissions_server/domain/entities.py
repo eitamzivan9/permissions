@@ -51,6 +51,11 @@ class Resource:
     and everything below it get no role from anything above it (unless
     granted directly here or lower) — a per-resource inheritance barrier,
     independent of any specific grant or grantee."""
+    owner_id: str | None = None
+    """Set only for a lazily-created personal workspace — the user id whose
+    workspace this is. None for every other resource, including
+    superuser-created team workspaces (those get an assigned admin grant,
+    not an owner)."""
 
 
 class Role(str, Enum):
@@ -119,10 +124,27 @@ class PermissionGrant:
     granted_by: str
 
 
+@dataclass(frozen=True, slots=True)
+class Restriction:
+    """A whitelist entry, not an additive grant. Same shape as PermissionGrant
+    but a deliberately distinct type: a resource with any Restriction rows
+    becomes gated — only grantees listed here get any access at/below it,
+    overriding even an Admin grant, unless the actor is SUPER_EDITOR. See
+    AccessResolver.effective_role for the exact precedence."""
+
+    grantee: Grantee
+    resource_id: str
+    role: Role
+    granted_by: str
+
+
 class AuditAction(str, Enum):
     GRANT = "grant"
     REVOKE = "revoke"
     ROLE_CHANGE = "role_change"
+    RESTRICT = "restrict"
+    UNRESTRICT = "unrestrict"
+    RESTRICTION_ROLE_CHANGE = "restriction_role_change"
 
 
 @dataclass(frozen=True, slots=True)

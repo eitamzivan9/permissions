@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { CatalogItem } from "../api/client";
-import { getCatalog, UnauthorizedError } from "../api/client";
+import { getCatalog, isSuperEditor, UnauthorizedError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import CreateTeamWorkspaceModal from "../components/CreateTeamWorkspaceModal";
 import ResourceNode from "../components/ResourceNode";
 
 const PAGE_SIZE = 4;
@@ -20,6 +21,7 @@ export default function Permissions() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
   // Debounce the search box into `query`, resetting to page 1 on change.
   useEffect(() => {
@@ -74,15 +76,33 @@ export default function Permissions() {
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="shrink-0 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-          >
-            Log out
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {isSuperEditor(user) && (
+              <button
+                type="button"
+                onClick={() => setIsCreatingWorkspace(true)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                + Create team workspace
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Log out
+            </button>
+          </div>
         </div>
       </header>
+
+      {isCreatingWorkspace && (
+        <CreateTeamWorkspaceModal
+          onClose={() => setIsCreatingWorkspace(false)}
+          onCreated={loadCatalog}
+        />
+      )}
 
       <main className="mx-auto max-w-4xl px-4 py-6">
         <input
@@ -97,13 +117,20 @@ export default function Permissions() {
           <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>
         )}
 
-        {isLoading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
+        {/* Only the very first load (no items yet) shows a full-page "Loading…" —
+            a background refetch triggered by a modal action (grant/restriction/
+            create) must NOT unmount the tree below, or any open modal inside a
+            ResourceNode unmounts with it, discarding its just-shown success
+            message. Found via manual UI testing 2026-07-31. */}
+        {isLoading && items.length === 0 && (
+          <p className="mt-6 text-sm text-slate-500">Loading…</p>
+        )}
 
         {!isLoading && !error && items.length === 0 && (
           <p className="mt-6 text-sm text-slate-500">Nothing matches your search.</p>
         )}
 
-        {!isLoading && !error && items.length > 0 && (
+        {!error && items.length > 0 && (
           <div className="mt-4 space-y-3">
             {items.map((item) => (
               <ResourceNode key={item.id} item={item} depth={0} onChanged={loadCatalog} />

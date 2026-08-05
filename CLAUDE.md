@@ -54,6 +54,35 @@ still hand-written mock data, just now optionally loaded into Postgres via
 `scripts/seed.py` instead of only into memory). Never hardcode a connection or bypass
 `domain.ports` to "just make it work" — that's exactly what breaks a swap like this.
 
+## Running the app — ALWAYS in DB (Postgres) mode
+
+Do not run against in-memory repositories for normal dev/testing — only the test suite
+(which force-unsets `PERMISSIONS_DATABASE_URL`, see `backend/tests/conftest.py`) should
+ever use in-memory. `backend/.env` already has `PERMISSIONS_DATABASE_URL` pointing at a
+local Postgres. `Settings.env_file` is resolved relative to the process's **current
+working directory**, not the file's location — starting uvicorn from the repo root
+silently misses `backend/.env` and falls back to in-memory. Always `cd backend` first.
+Two terminals, one line each. Git Bash uses `&&`; PowerShell 5.1 rejects `&&` as a
+statement separator — use `;` there instead:
+
+```bash
+# Terminal 1 — backend, DB mode (http://localhost:8000) — Git Bash
+cd backend && .venv/Scripts/python.exe -m uvicorn permissions_server.main:app --reload
+```
+
+```powershell
+# Terminal 1 — backend, DB mode (http://localhost:8000) — PowerShell
+cd backend; .venv/Scripts/python.exe -m uvicorn permissions_server.main:app --reload
+```
+
+```bash
+# Terminal 2 — frontend (http://localhost:5173) — either shell
+npm --prefix frontend run dev
+```
+
+One-time setup before the first run (idempotent, safe to re-run): `cd backend`, then
+`alembic upgrade head` followed by `python scripts/seed.py`.
+
 ## Stack
 
 - Backend: Python, FastAPI. Storage: in-memory repositories
@@ -105,10 +134,50 @@ parent/child pairs live in `_ALLOWED_CHILD_TYPES` / `is_valid_child()`:
 Each `Resource` also carries `inherits_from_parent: bool` (default `True`). Setting it
 `False` on a resource walls off that resource and everything below it from any
 ancestor's grant — `AccessResolver`'s climb stops there even if no explicit grant
-exists at that node — without having to enumerate every affected grantee. There is no
-API route to flip this yet (no resource-admin endpoints exist at all in Phase 1;
-resources come only from `infrastructure/seed_data.py`); it's exercised today via
-`ResourceRepository.set_inherits_from_parent()` directly.
+exists at that node — without having to enumerate every affected grantee. There is
+still no API route to flip this flag (it's exercised only via
+`ResourceRepository.set_inherits_from_parent()` directly) — but resource creation
+itself is no longer Phase-1-only static seed data; see "Resource creation, personal &
+team workspaces, move" below.
+
+## Resource creation, personal & team workspaces, move
+
+`application/resource_service.py` (`ResourceService`) is the one place all of this is
+orchestrated — validate → authorize → write → auto-grant, never duplicated per flow:
+- `create_child(actor, type, name, parent_id)` — `POST /resources`. Requires the actor
+  hold `effective_role` ≥ Editor at `parent_id` (restriction-aware for free, since it
+  goes through `AccessResolver`); the creator is auto-granted Admin on the new resource
+  via `PermissionGrantService.bootstrap_admin_grant()` (bypasses `can_manage` —
+  inapplicable on a brand-new resource with no admin yet).
+- `get_or_create_my_workspace(actor)` — `GET /resources/my-workspace`. Every
+  authenticated user gets exactly one personal root Workspace, identified by
+  `Resource.owner_id == actor.id` (`ResourceRepository.find_workspace_by_owner()`).
+  Idempotent — called fire-and-forget from the frontend's `AuthContext` right after
+  `/auth/me` resolves on every login, so it exists without any explicit "create my
+  workspace" action. `CatalogService.get_catalog()`'s no-search branch always pins the
+  caller's own personal workspace first in the top-level Workspace list (via
+  `list_by_type(..., pinned_id=...)` on `ResourceRepository`) — confirmed 2026-07-31,
+  so it's visible without hunting through alphabetical/paginated results.
+- `create_team_workspace(actor, name, admin_user_id)` — `POST /resources/workspaces`,
+  `SUPER_EDITOR`-only (403 otherwise). Creates a root Workspace (no `owner_id`) and
+  grants Admin to `admin_user_id`, which need not be the caller. Frontend: a
+  "+ Create team workspace" button in `Permissions.tsx`, gated by
+  `isSuperEditor(user)` (reads `Me.system_roles` from `/auth/me`).
+- `move(actor, resource_id, new_parent_id)` — `PATCH /resources/{id}/move`. Requires
+  Admin at the resource being moved and Editor+ at the destination; rejects moving a
+  resource into its own subtree (checked via `path_to_root(new_parent_id)`). No
+  frontend UI for this yet — API only.
+
+**Personal-workspace delegation bypass**: normally granting/restricting a *user*
+grantee requires the actor be transitively above that user in the org chart (see
+"Delegation rule" below). `application/delegation_rules.py`'s
+`grantee_passes_org_chart_check()` adds one exception, shared by both
+`PermissionGrantService.can_manage` and `RestrictionService.can_set_restriction`: if
+the resource's root is the actor's own personal workspace
+(`is_within_actors_personal_workspace()`, via `path_to_root()[0].owner_id`), the
+org-chart check is skipped entirely — an owner can grant/restrict *anyone* inside their
+own sandbox. `list_manageable_users(actor, resource_id=...)` mirrors this: inside the
+actor's own workspace it returns every user, not just org-chart subordinates.
 
 ## Permission model
 
@@ -129,16 +198,78 @@ resources come only from `infrastructure/seed_data.py`); it's exercised today vi
   the frontend); `CatalogService`, `PermissionGrantService`, and
   `AccessTransparencyService` all go through it so they can't drift apart.
 
+## Restrictions (whitelist gate)
+
+A `Restriction` (`domain/entities.py`) is a **separate dataclass from `PermissionGrant`**
+— same `(grantee, resource_id, role, granted_by)` shape, but the opposite meaning: the
+mere *existence* of any restriction row at a resource gates it completely. Precedence
+in `AccessResolver.effective_role()`, in order: (1) `SUPER_EDITOR` bypasses
+unconditionally, before any restriction lookup; (2) `nearest_restriction()` — the
+restriction twin of `nearest_grants()`, same nearest-ancestor-wins/`inherits_from_parent`
+semantics — if found, a grantee NOT listed there gets `None` regardless of any grant
+they hold (even an Admin grant), fully short-circuiting step 4; a listed grantee gets
+the highest-rank matching entry's role; (3) otherwise, ordinary `nearest_grants()`
+resolution, unchanged. **`SUPER_VIEWER` bypasses restrictions too** (checked right
+after `SUPER_EDITOR`, before the restriction lookup even runs) — confirmed 2026-07-31:
+both system-wide roles are "greater than any [resource-level] permission," including
+restrictions; `SUPER_VIEWER` just resolves to Viewer instead of Admin. (Prior to
+2026-07-31 this was the opposite — only `SUPER_EDITOR` bypassed — see git history on
+`access_resolver.py` if that matters.) **Exception, also confirmed 2026-07-31**:
+`SUPER_VIEWER`'s Viewer-cap does NOT apply inside the actor's own personal workspace —
+there, resolution falls through normally to their own bootstrap Admin grant, so being
+made `SUPER_VIEWER` never demotes someone in their own sandbox. `SUPER_EDITOR` needed
+no equivalent carve-out (Admin is already the ceiling everywhere).
+
+Only Admin (or `SUPER_EDITOR`) may set/revoke a restriction —
+`RestrictionService.can_set_restriction`, never Manager — via
+`PUT`/`DELETE /restrictions/{resource_id}/{grantee_type}/{grantee_id}`, same org-chart
++ personal-workspace-bypass rule as grants (`delegation_rules.py`, above). No
+self-lockout guard: an Admin who restricts a resource without listing themselves can
+legitimately lose access — intended. Frontend: `RestrictionsModal.tsx`, wired into
+`ResourceNode.tsx` behind an "Restrictions" button gated on `effective_role === "admin"`
+(mirrors the backend check exactly).
+
+This **reverses part of** the "Known, deliberate departures" universal-visibility
+decision below — see that section for what's still true (visibility) vs. what changed
+(the whitelist mechanism itself, now implemented).
+
 ## UI scope
 
 The main page lists **every** resource in the system (not just ones the caller has
 access to), each annotated with the caller's own `effective_role` (possibly `None`),
-`can_manage`, and `can_fetch`. `can_fetch` bubbles up from descendants: a resource with
+`can_manage`, and `can_fetch` — **with one deliberate exception, confirmed 2026-07-31**:
+another user's personal workspace (and everything inside it) is hidden entirely from a
+caller who can't reach any of it at all (`CatalogService._is_hidden_other_personal_
+workspace()`). Everyone still sees their OWN personal workspace regardless of role, and
+every non-personal (team/shared) resource — e.g. City Planning — stays universally
+visible to everyone regardless of access, exactly as before. The test is `can_fetch`
+(reachable at that node OR any descendant), not "am I the owner": a non-owner with a
+real explicit grant somewhere inside another user's personal workspace can still see
+(and search-find) that specific branch — the rule is "can't reach ANY of it," not
+"isn't the owner." `SUPER_EDITOR`/`SUPER_VIEWER` always see every personal workspace
+too, since their system-wide bypass already makes `can_fetch` true everywhere. This
+filtering happens in `CatalogService.get_catalog()` for both the no-search and search
+branches, using the same "total reflects the unfiltered universe, a page may return
+fewer than page_size items" pattern `get_external_access` already established — no new
+pagination contract, just one more filter condition, scoped only to personal
+workspaces.
+
+`can_fetch` bubbles up from descendants: a resource with
 no role of its own is still `can_fetch=true` if the caller can reach even one
 descendant (e.g. a Map is fetchable if the caller has a role on just one Layer inside
 it, since the map has to load to render that layer). Search matches any resource by
 name at any depth, returning it with its full subtree. A "manage access" affordance
-appears only where `can_manage` is true (effective role is Manager or Admin).
+appears only where `can_manage` is true (effective role is Manager or Admin). A
+"+ Create" affordance (`CreateResourceModal.tsx`) appears at Editor+; a "Restrictions"
+affordance (`RestrictionsModal.tsx`) appears at Admin only.
+
+`Permissions.tsx`'s catalog render must never gate the resource-tree block on
+`isLoading` alone (only on `items.length === 0`, for the true first load) — every modal
+(`ManageAccessModal`, `RestrictionsModal`, `CreateResourceModal`) lives inside a
+`ResourceNode`, and `onChanged`'s background refetch briefly sets `isLoading`. Gating
+the whole tree on it unmounts every `ResourceNode` mid-refetch, closing whatever modal
+was open before its success message ever renders — found via manual UI testing
+2026-07-31, not caught by the test suite (a frontend interaction bug, not a logic bug).
 
 ## Delegation rule (who can change whose grant)
 
@@ -182,9 +313,23 @@ instead.
 The reference docs (PDF design doc, Hebrew docx spec, and the `sk-permissions` repo)
 describe a **whitelist-only visibility model** ("everything invisible by default,"
 siblings hidden unless explicitly granted, restrict/unrestrict cascading). This project
-deliberately keeps **universal visibility** instead — every resource is shown to every
-user — confirmed with the project owner. There is intentionally no `restrict`/
-`unrestrict` mechanism and no corresponding audit actions for it.
+deliberately keeps **universal visibility** for team/shared resources instead — every
+non-personal resource (name, type, position in the tree) is shown to every user
+regardless of their access — confirmed with the project owner. **Narrowed 2026-07-31**:
+personal workspaces are the one exception — another user's personal workspace (and
+everything inside it) IS hidden from a caller who can't reach any of it, matching the
+reference docs' model but scoped only to personal workspaces, not the whole tree. See
+"UI scope" above for the exact rule.
+
+**Superseded, as of the `instructions/new-guide-he.txt` pass**: the second half of this
+departure — "no restrict/unrestrict mechanism" — is no longer accurate. The user
+explicitly confirmed the new whitelist requirement supersedes that part of this
+document ("what i wrote is what decide, not claude.md"). A `Restriction`
+mechanism now exists (see "Restrictions (whitelist gate)" above) with its own
+`RESTRICT`/`UNRESTRICT`/`RESTRICTION_ROLE_CHANGE` audit actions. What did **not**
+change: restrictions gate *access* (who can act as what role), not *visibility* — a
+restricted resource's name/position still shows in the catalog for everyone, only
+`effective_role` goes to `None` for grantees not on the whitelist.
 
 ## Known deferred work (do not silently "fix" — ask first)
 
@@ -195,8 +340,22 @@ user — confirmed with the project owner. There is intentionally no `restrict`/
   now also the source `scripts/seed.py` loads into Postgres), real org hierarchy
   source (currently the JSON-derived fixture) — likely AD/ADFS groups eventually.
   (Real Postgres repositories are done — see "Deployment context" above.)
-- No API route to create resources or toggle `inherits_from_parent` — Phase 1 has no
-  resource-admin endpoints at all.
+- No API route to toggle `inherits_from_parent` — resource *creation* now has full API
+  coverage (see "Resource creation, personal & team workspaces, move" above:
+  `POST /resources`, `GET /resources/my-workspace`, `POST /resources/workspaces`,
+  `PATCH /resources/{id}/move`), but flipping `inherits_from_parent` on an existing
+  resource is still only reachable via `ResourceRepository.set_inherits_from_parent()`
+  directly, not through any endpoint.
+- **OPEN DECISION — tie-break rule for grants/restrictions**: currently rank-based
+  (highest role wins among multiple grants, or multiple restriction entries, at the
+  same nearest-ancestor node) — see `AccessResolver.effective_role()` in
+  `application/access_resolver.py`. `instructions/new-guide-he.txt` line 11 says
+  conflicts should resolve by "the last one" (recency) instead, which directly
+  contradicts this. The user has NOT yet decided which one is correct — do not change
+  this behavior (or the regression test `test_restriction_tie_break_is_rank_based_not_recency`
+  in `tests/unit/test_access_resolver.py`) until they do. Recency would also require a
+  new timestamp field on `PermissionGrant`/`Restriction` (neither has one today) plus a
+  migration — it's not a small tweak.
 
 ## Agent behavior (inherits workspace-level rules, restated for this project)
 
@@ -204,8 +363,9 @@ user — confirmed with the project owner. There is intentionally no `restrict`/
 - SOLID and no-duplication (above) are enforced, not optional — new code must depend on
   `domain.ports`, not on concrete `infrastructure` classes, and must not duplicate logic
   across resource types, grantee types, or repository backends.
-- Always build and run (`uvicorn` backend + `npm run dev` frontend — no DB setup needed
-  in Phase 1) and manually verify the affected flow before reporting a change as done.
+- Always build and run in DB mode (see "Running the app" above — `cd backend` first so
+  `backend/.env`'s `PERMISSIONS_DATABASE_URL` is actually picked up) and manually verify
+  the affected flow before reporting a change as done.
 
 ## graphify
 

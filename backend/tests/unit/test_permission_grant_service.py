@@ -5,7 +5,9 @@ from permissions_server.domain.entities import (
     AuthenticatedUser,
     Grantee,
     GranteeType,
+    ResourceType,
     Role,
+    SystemRole,
 )
 from permissions_server.domain.errors import ForbiddenError
 
@@ -184,3 +186,79 @@ async def test_list_manageable_users_returns_only_transitive_subordinates(
     assert SUBORDINATE_ID in ids
     assert NOT_SUBORDINATE_ID not in ids
     assert ACTOR.id not in ids
+
+
+async def test_can_manage_true_for_non_subordinate_inside_own_personal_workspace(
+    permission_grant_service, grant_repo, resource_repo
+):
+    """A personal workspace's owner has authority over its whole subtree
+    regardless of the org chart — it's their own sandbox, not something
+    they manage by reporting-line authority (NOT_SUBORDINATE_ID is
+    deliberately not ACTOR's subordinate elsewhere in this file)."""
+    workspace = await resource_repo.create(
+        type=ResourceType.WORKSPACE, name="Actor's Workspace", parent_id=None, owner_id=ACTOR.id
+    )
+    await grant_repo.upsert_grant(
+        Grantee(GranteeType.USER, user_id=ACTOR.id), workspace.id, Role.ADMIN, granted_by=ACTOR.id
+    )
+    assert (
+        await permission_grant_service.can_manage(
+            ACTOR, NOT_SUBORDINATE_GRANTEE, workspace.id, Role.EDITOR
+        )
+        is True
+    )
+
+
+async def test_can_manage_false_for_non_subordinate_inside_someone_elses_personal_workspace(
+    permission_grant_service, grant_repo, resource_repo
+):
+    """The bypass is scoped to the OWNER's own workspace — an Admin grant
+    someone else handed out inside a different user's personal workspace
+    still goes through the ordinary org-chart check."""
+    workspace = await resource_repo.create(
+        type=ResourceType.WORKSPACE, name="Someone Else's Workspace", parent_id=None, owner_id="u999"
+    )
+    await grant_repo.upsert_grant(
+        Grantee(GranteeType.USER, user_id=ACTOR.id), workspace.id, Role.ADMIN, granted_by="u999"
+    )
+    assert (
+        await permission_grant_service.can_manage(
+            ACTOR, NOT_SUBORDINATE_GRANTEE, workspace.id, Role.EDITOR
+        )
+        is False
+    )
+
+
+async def test_list_manageable_users_returns_everyone_inside_own_personal_workspace(
+    permission_grant_service, grant_repo, resource_repo
+):
+    workspace = await resource_repo.create(
+        type=ResourceType.WORKSPACE, name="Actor's Workspace", parent_id=None, owner_id=ACTOR.id
+    )
+    users = await permission_grant_service.list_manageable_users(ACTOR, resource_id=workspace.id)
+    ids = {u.id for u in users}
+    assert SUBORDINATE_ID in ids
+    assert NOT_SUBORDINATE_ID in ids  # the whole point of the bypass
+
+
+async def test_list_manageable_users_ignores_resource_id_outside_own_personal_workspace(
+    permission_grant_service,
+):
+    users = await permission_grant_service.list_manageable_users(ACTOR, resource_id=MAP_ID)
+    ids = {u.id for u in users}
+    assert NOT_SUBORDINATE_ID not in ids
+
+
+async def test_list_manageable_users_returns_everyone_for_super_editor(
+    permission_grant_service, system_role_repo
+):
+    """Found via manual UI testing 2026-07-31: can_manage already lets a
+    SUPER_EDITOR grant to anyone (bypasses the org-chart check entirely), but
+    this listing didn't know that — the picker showed "no one available" even
+    though the grant itself would have succeeded. NOT_SUBORDINATE_ID (not
+    ACTOR's subordinate anywhere in this file) proves the bypass, same as the
+    personal-workspace case above."""
+    await system_role_repo.grant_system_role(ACTOR.id, SystemRole.SUPER_EDITOR, granted_by="root")
+    users = await permission_grant_service.list_manageable_users(ACTOR, resource_id=MAP_ID)
+    ids = {u.id for u in users}
+    assert NOT_SUBORDINATE_ID in ids

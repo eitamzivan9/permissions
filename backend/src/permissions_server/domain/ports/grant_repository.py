@@ -33,3 +33,9 @@ class PermissionGrantRepository(Protocol):
     async def delete_grant(self, grantee: Grantee, resource_id: str) -> None:
         """Remove the explicit grant row; no error if it didn't exist."""
         ...
+
+    async def delete_grants_for_resource_ids(self, resource_ids: list[str]) -> None:
+        """Remove every grant (any grantee) on any of these resources — the
+        cascade cleanup ResourceService.delete() needs before it can drop the
+        resource rows themselves."""
+        ...

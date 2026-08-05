@@ -38,6 +38,24 @@ class AuditService:
         """`role` is the NEW role the grantee ends up with."""
         return await self._record(actor, grantee, resource_id, role, AuditAction.ROLE_CHANGE)
 
+    async def record_restrict(
+        self, actor: AuthenticatedUser, grantee: Grantee, resource_id: str, role: Role
+    ) -> AuditLogEntry:
+        return await self._record(actor, grantee, resource_id, role, AuditAction.RESTRICT)
+
+    async def record_unrestrict(
+        self, actor: AuthenticatedUser, grantee: Grantee, resource_id: str, role: Role
+    ) -> AuditLogEntry:
+        return await self._record(actor, grantee, resource_id, role, AuditAction.UNRESTRICT)
+
+    async def record_restriction_role_change(
+        self, actor: AuthenticatedUser, grantee: Grantee, resource_id: str, role: Role
+    ) -> AuditLogEntry:
+        """`role` is the NEW role the restriction entry ends up with."""
+        return await self._record(
+            actor, grantee, resource_id, role, AuditAction.RESTRICTION_ROLE_CHANGE
+        )
+
     async def _record(
         self,
         actor: AuthenticatedUser,

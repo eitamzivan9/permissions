@@ -14,6 +14,8 @@ from permissions_server.api.routers import (
     catalog_router,
     external_router,
     grants_router,
+    resources_router,
+    restrictions_router,
     teams_router,
 )
 from permissions_server.config import get_settings
@@ -31,6 +33,9 @@ from permissions_server.infrastructure.memory.in_memory_grant_repository import 
 from permissions_server.infrastructure.memory.in_memory_resource_repository import (
     InMemoryResourceRepository,
 )
+from permissions_server.infrastructure.memory.in_memory_restriction_repository import (
+    InMemoryRestrictionRepository,
+)
 from permissions_server.infrastructure.memory.in_memory_system_role_repository import (
     InMemorySystemRoleRepository,
 )
@@ -44,6 +49,9 @@ from permissions_server.infrastructure.repositories.sqlalchemy_grant_repository 
 )
 from permissions_server.infrastructure.repositories.sqlalchemy_resource_repository import (
     SqlAlchemyResourceRepository,
+)
+from permissions_server.infrastructure.repositories.sqlalchemy_restriction_repository import (
+    SqlAlchemyRestrictionRepository,
 )
 from permissions_server.infrastructure.repositories.sqlalchemy_system_role_repository import (
     SqlAlchemySystemRoleRepository,
@@ -85,6 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.grant_repository = SqlAlchemyGrantRepository(sessionmaker)
         app.state.system_role_repository = SqlAlchemySystemRoleRepository(sessionmaker)
         app.state.audit_log_repository = SqlAlchemyAuditLogRepository(sessionmaker)
+        app.state.restriction_repository = SqlAlchemyRestrictionRepository(sessionmaker)
         # No _seed_root_grants() call: with real persistence, seeding is a
         # one-time step (scripts/seed.py), not something to redo on every
         # process start.
@@ -94,6 +103,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.grant_repository = InMemoryGrantRepository()
         app.state.system_role_repository = InMemorySystemRoleRepository()
         app.state.audit_log_repository = InMemoryAuditLogRepository()
+        app.state.restriction_repository = InMemoryRestrictionRepository()
         await _seed_root_grants(app.state.grant_repository)
 
     app.state.user_directory = MockUserDirectory()
@@ -128,6 +138,8 @@ def create_app() -> FastAPI:
     app.include_router(teams_router.router)
     app.include_router(access_router.router)
     app.include_router(audit_router.router)
+    app.include_router(resources_router.router)
+    app.include_router(restrictions_router.router)
 
     return app
 

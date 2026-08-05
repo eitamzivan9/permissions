@@ -3,16 +3,17 @@ import type { ReactNode } from "react";
 import {
   clearStoredToken,
   getMe,
+  getMyWorkspace,
   getStoredToken,
   login as apiLogin,
   setStoredToken,
   UnauthorizedError,
 } from "../api/client";
-import type { MockUser } from "../api/client";
+import type { Me } from "../api/client";
 
 interface AuthContextValue {
   token: string | null;
-  user: MockUser | null;
+  user: Me | null;
   isAuthenticated: boolean;
   /** True while the current token's identity is being resolved via /auth/me. */
   isLoading: boolean;
@@ -24,7 +25,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => getStoredToken());
-  const [user, setUser] = useState<MockUser | null>(null);
+  const [user, setUser] = useState<Me | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(() => getStoredToken() !== null);
 
   // Whenever the token changes (including on mount, if one was already in
@@ -45,6 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           setUser(me);
         }
+        // Every user gets a personal workspace by default — ensure it exists
+        // as soon as their identity resolves, rather than requiring them to
+        // know a "create my workspace" action exists. Idempotent server-side
+        // and non-blocking: a failure here shouldn't break login.
+        getMyWorkspace().catch(() => {});
       })
       .catch((error: unknown) => {
         if (cancelled) return;

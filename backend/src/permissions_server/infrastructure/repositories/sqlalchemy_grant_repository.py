@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from permissions_server.domain.entities import Grantee, PermissionGrant, Role
@@ -81,6 +81,16 @@ class SqlAlchemyGrantRepository:
             if existing is not None:
                 await session.delete(existing)
                 await session.commit()
+
+    async def delete_grants_for_resource_ids(self, resource_ids: list[str]) -> None:
+        if not resource_ids:
+            return
+        async with self._sessionmaker() as session:
+            stmt = delete(PermissionGrantModel).where(
+                PermissionGrantModel.resource_id.in_(resource_ids)
+            )
+            await session.execute(stmt)
+            await session.commit()
 
     @staticmethod
     async def _find(

@@ -32,10 +32,10 @@ class InMemoryResourceRepository(InMemoryEntityRepository[Resource]):
         return list(reversed(chain))
 
     async def list_by_type(
-        self, resource_type: ResourceType, *, page: int, page_size: int
+        self, resource_type: ResourceType, *, page: int, page_size: int, pinned_id: str | None = None
     ) -> Page[Resource]:
         items = [r for r in self._by_id.values() if r.type is resource_type]
-        items.sort(key=lambda r: r.name)
+        items.sort(key=lambda r: (r.id != pinned_id, r.name))
 
         total = len(items)
         start = (page - 1) * page_size
@@ -49,6 +49,7 @@ class InMemoryResourceRepository(InMemoryEntityRepository[Resource]):
         name: str,
         parent_id: str | None,
         inherits_from_parent: bool = True,
+        owner_id: str | None = None,
     ) -> Resource:
         resource = Resource(
             id=uuid4().hex,
@@ -56,6 +57,7 @@ class InMemoryResourceRepository(InMemoryEntityRepository[Resource]):
             name=name,
             parent_id=parent_id,
             inherits_from_parent=inherits_from_parent,
+            owner_id=owner_id,
         )
         self._by_id[resource.id] = resource
         return resource
@@ -68,6 +70,43 @@ class InMemoryResourceRepository(InMemoryEntityRepository[Resource]):
             name=current.name,
             parent_id=current.parent_id,
             inherits_from_parent=value,
+            owner_id=current.owner_id,
         )
         self._by_id[resource_id] = updated
         return updated
+
+    async def find_workspace_by_owner(self, owner_id: str) -> Resource | None:
+        return next(
+            (
+                r
+                for r in self._by_id.values()
+                if r.type is ResourceType.WORKSPACE and r.owner_id == owner_id
+            ),
+            None,
+        )
+
+    async def move(self, resource_id: str, new_parent_id: str) -> Resource:
+        current = self._by_id[resource_id]
+        updated = Resource(
+            id=current.id,
+            type=current.type,
+            name=current.name,
+            parent_id=new_parent_id,
+            inherits_from_parent=current.inherits_from_parent,
+            owner_id=current.owner_id,
+        )
+        self._by_id[resource_id] = updated
+        return updated
+
+    async def descendant_ids(self, resource_id: str) -> list[str]:
+        ids = [resource_id]
+        frontier = [resource_id]
+        while frontier:
+            children = [r.id for r in self._by_id.values() if r.parent_id in frontier]
+            ids.extend(children)
+            frontier = children
+        return ids
+
+    async def delete(self, resource_id: str) -> None:
+        for descendant_id in await self.descendant_ids(resource_id):
+            self._by_id.pop(descendant_id, None)

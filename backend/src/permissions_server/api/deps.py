@@ -20,12 +20,15 @@ from permissions_server.application.audit_service import AuditService
 from permissions_server.application.auth_service import AuthService
 from permissions_server.application.catalog_service import CatalogService
 from permissions_server.application.permission_grant_service import PermissionGrantService
+from permissions_server.application.resource_service import ResourceService
+from permissions_server.application.restriction_service import RestrictionService
 from permissions_server.domain.entities import AuthenticatedUser
 from permissions_server.domain.errors import UnauthorizedError
 from permissions_server.domain.ports.audit_log_repository import AuditLogRepository
 from permissions_server.domain.ports.grant_repository import PermissionGrantRepository
 from permissions_server.domain.ports.org_hierarchy import OrgHierarchy
 from permissions_server.domain.ports.resource_repository import ResourceRepository
+from permissions_server.domain.ports.restriction_repository import RestrictionRepository
 from permissions_server.domain.ports.system_role_repository import SystemRoleRepository
 from permissions_server.domain.ports.team_repository import TeamRepository
 from permissions_server.domain.ports.token_issuer import TokenIssuer
@@ -58,6 +61,10 @@ def get_audit_log_repository(request: Request) -> AuditLogRepository:
     return request.app.state.audit_log_repository
 
 
+def get_restriction_repository(request: Request) -> RestrictionRepository:
+    return request.app.state.restriction_repository
+
+
 def get_user_directory(request: Request) -> UserDirectory:
     return request.app.state.user_directory
 
@@ -82,9 +89,14 @@ def get_access_resolver(
     grant_repository: Annotated[PermissionGrantRepository, Depends(get_grant_repository)],
     team_repository: Annotated[TeamRepository, Depends(get_team_repository)],
     system_role_repository: Annotated[SystemRoleRepository, Depends(get_system_role_repository)],
+    restriction_repository: Annotated[RestrictionRepository, Depends(get_restriction_repository)],
 ) -> AccessResolver:
     return AccessResolver(
-        resource_repository, grant_repository, team_repository, system_role_repository
+        resource_repository,
+        grant_repository,
+        team_repository,
+        system_role_repository,
+        restriction_repository,
     )
 
 
@@ -107,9 +119,15 @@ def get_permission_grant_service(
     org_hierarchy: Annotated[OrgHierarchy, Depends(get_org_hierarchy)],
     user_directory: Annotated[UserDirectory, Depends(get_user_directory)],
     audit_service: Annotated[AuditService, Depends(get_audit_service)],
+    resource_repository: Annotated[ResourceRepository, Depends(get_resource_repository)],
 ) -> PermissionGrantService:
     return PermissionGrantService(
-        grant_repository, access_resolver, org_hierarchy, user_directory, audit_service
+        grant_repository,
+        access_resolver,
+        org_hierarchy,
+        user_directory,
+        audit_service,
+        resource_repository,
     )
 
 
@@ -124,6 +142,36 @@ def get_auth_service(
     token_issuer: Annotated[TokenIssuer, Depends(get_token_issuer)],
 ) -> AuthService:
     return AuthService(user_directory, token_issuer)
+
+
+def get_resource_service(
+    resource_repository: Annotated[ResourceRepository, Depends(get_resource_repository)],
+    access_resolver: Annotated[AccessResolver, Depends(get_access_resolver)],
+    permission_grant_service: Annotated[
+        PermissionGrantService, Depends(get_permission_grant_service)
+    ],
+    grant_repository: Annotated[PermissionGrantRepository, Depends(get_grant_repository)],
+    restriction_repository: Annotated[RestrictionRepository, Depends(get_restriction_repository)],
+) -> ResourceService:
+    return ResourceService(
+        resource_repository,
+        access_resolver,
+        permission_grant_service,
+        grant_repository,
+        restriction_repository,
+    )
+
+
+def get_restriction_service(
+    restriction_repository: Annotated[RestrictionRepository, Depends(get_restriction_repository)],
+    access_resolver: Annotated[AccessResolver, Depends(get_access_resolver)],
+    org_hierarchy: Annotated[OrgHierarchy, Depends(get_org_hierarchy)],
+    audit_service: Annotated[AuditService, Depends(get_audit_service)],
+    resource_repository: Annotated[ResourceRepository, Depends(get_resource_repository)],
+) -> RestrictionService:
+    return RestrictionService(
+        restriction_repository, access_resolver, org_hierarchy, audit_service, resource_repository
+    )
 
 
 # --- current-user dependency: every Bearer-auth route depends on this ---
