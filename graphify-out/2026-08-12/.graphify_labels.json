@@ -93,13 +93,5 @@
   "91": "GrantOut",
   "92": ".upsert_grant",
   "93": "Base",
-  "94": "FastAPI",
-  "95": ".__init__",
-  "96": "permission_grant_service.py",
-  "97": "resource_service.py",
-  "98": "restriction_service.py",
-  "99": ".delete_grants_for_resource_ids",
-  "100": ".descendant_ids",
-  "101": ".delete",
-  "102": ".delete_restrictions_for_resource_ids"
+  "94": "FastAPI"
 }

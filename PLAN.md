@@ -216,10 +216,11 @@ Premissions/
     └── src/
         ├── pages/{Login,Permissions}.tsx
         ├── components/
-        │   ├── ResourceNode.tsx           # recursive tree node — "+ Create" (Editor+), "Manage access" (can_manage), "Restrictions" (Admin)
+        │   ├── ResourceNode.tsx           # recursive tree node — "+ Create" (Editor+), "Manage access" (can_manage), "Restrictions"/"Move" (Admin), "Delete" (Workspace/Folder/Group, Admin, empty-only) or "Remove access" (Map/Layer, any role)
         │   ├── ManageAccessModal.tsx       # ordinary grants
         │   ├── RestrictionsModal.tsx       # whitelist — same shell/pattern as ManageAccessModal
-        │   ├── CreateResourceModal.tsx     # child creation under a parent the caller can edit
+        │   ├── CreateResourceModal.tsx     # child creation under a parent the caller can edit — Folder/Group only, Map/Layer are server-to-server
+        │   ├── MoveResourceModal.tsx       # search-and-pick destination, calls the existing move endpoint
         │   ├── CreateTeamWorkspaceModal.tsx # SUPER_EDITOR-only, picks the initial admin
         │   └── RoleBadge.tsx
         ├── api/client.ts                   # sole typed backend-communication module
@@ -290,15 +291,21 @@ replacing `seed_data.py` as the source of truth.
 - **`RestrictionService`** — Admin-only (never Manager) `set_restriction`/
   `revoke_restriction`; `can_set_restriction` requires the actor's own current
   (restriction-aware) `effective_role` be exactly Admin, plus the same
-  `delegation_rules` org-chart check as grants. No self-lockout guard — an Admin
-  restricting a resource without listing themselves can legitimately lose access.
-- **`ResourceService`** — orchestrates all resource creation and move, each
+  `delegation_rules` org-chart check as grants. The FIRST restriction ever placed on a
+  resource auto-whitelists the acting admin as Admin (in addition to whoever they
+  explicitly listed), so an admin can no longer lock themselves out via their own first
+  restriction; `revoke_restriction` rejects (409) removing the last Admin-role entry
+  while the resource would stay gated with other entries remaining — removing the
+  truly last restriction row overall is always allowed (a full unrestrict).
+- **`ResourceService`** — orchestrates all resource creation, move, and delete, each
   validate → authorize → write → auto-grant: `create_child` (Editor+ at parent, new
-  resource's creator auto-granted Admin), `get_or_create_my_workspace` (any
+  resource's creator auto-granted Admin — accepts any `ResourceType`, though
+  `CreateResourceModal.tsx` only offers Folder/Group), `get_or_create_my_workspace` (any
   authenticated user, idempotent, keyed by `owner_id`), `create_team_workspace`
   (`SUPER_EDITOR`-only, grants the caller-specified `admin_user_id`, not necessarily
   the caller), `move` (Admin at source + Editor+ at destination, rejects moving into
-  own subtree via `path_to_root`).
+  own subtree via `path_to_root`), `delete` (Admin; Workspace/Folder/Group only when
+  empty via `children_of`, Map/Layer keep the original unconditional cascade).
 - **`AccessTransparencyService`** — `explain_access()` returns every contributing
   `AccessSource` (system role, restriction entry, or grant) at the nearest ancestor
   with any grant/restriction, with `is_effective` marking the winner; `my_access`
@@ -394,6 +401,7 @@ needed zero changes (DIP in action).
 | POST | `/resources/workspaces` | Bearer, `SUPER_EDITOR` only | create a team workspace; body `{name, admin_user_id}` |
 | POST | `/resources` | Bearer, Editor+ at parent | create a child resource; body `{type, name, parent_id}` |
 | PATCH | `/resources/{resource_id}/move` | Bearer, Admin at source + Editor+ at destination | reparent a resource; body `{new_parent_id}` |
+| DELETE | `/resources/{resource_id}` | Bearer, Admin | delete a resource — Workspace/Folder/Group only if it has zero children (409 otherwise); Map/Layer always cascade-delete the whole subtree. Frontend never calls this for Map/Layer (see "Remove access" via the grants DELETE endpoint above instead) |
 | GET | `/teams` | Bearer | list Teams |
 | POST | `/teams` | Bearer | create a Team |
 | GET | `/teams/{team_id}/members` | Bearer | list a Team's members |
@@ -425,10 +433,13 @@ whatever real grants already exist in Postgres.
   (whitelist)" above) — this supersedes the earlier "no restrict/unrestrict mechanism"
   note, confirmed directly with the user. Both system-wide roles (`SUPER_EDITOR` and
   `SUPER_VIEWER`) bypass it, confirmed 2026-07-31.
-- Resource *creation* (child resources, personal workspaces, team workspaces, move) is
-  fully built — see "Resource creation, personal & team workspaces, move" above. What's
-  still missing: no API route to toggle `inherits_from_parent` on an existing
-  resource — only exercised via the repository directly.
+- Resource *creation, move, and delete* (child resources, personal workspaces, team
+  workspaces, move, type-dependent delete) are fully built — see "Resource creation,
+  personal & team workspaces, move" above. What's still missing: no API route to
+  toggle `inherits_from_parent` on an existing resource — only exercised via the
+  repository directly; no service-to-service auth for the Map/Layer-owning system to
+  call `POST`/`DELETE /resources` itself (those endpoints stay open to any
+  authenticated caller in the meantime).
 
 ## Build sequence (current state: Phase 1 + Phase 2 storage complete and passing)
 
@@ -449,6 +460,22 @@ org-chart + personal-workspace-bypass check) → `RestrictionService` +
 `CreateResourceModal.tsx`, `CreateTeamWorkspaceModal.tsx`, `RestrictionsModal.tsx`,
 `isSuperEditor`/`Me` in `client.ts`. 116 of 118 backend tests passing (`pytest`) — the
 2 failures are pre-existing and unrelated (mock-user-fixture row count, not this work).
+
+**Permissions-boundary tightening** (later addition, built and green, 150/150 backend
+tests passing): `ResourceService.delete()` grows a `domain.entities.is_organizational()`
+empty-check for Workspace/Folder/Group (Map/Layer keep the original cascade) →
+`RestrictionService.set_restriction`/`revoke_restriction` grow the
+auto-whitelist-on-first-restriction and last-Admin-standing guard →
+`PermissionGrantService.revoke()` grows an explicit self-revocation bypass (deliberately
+not folded into `can_manage()`, to avoid a self-grant-escalation path) →
+`delegation_rules.py`'s `grantee_passes_org_chart_check()` grows a self-grantee
+exception → frontend: `CreateResourceModal.tsx` narrowed to Folder/Group,
+`ResourceNode.tsx` splits "Delete" (organizational) from "Remove access" (Map/Layer,
+self-grant revoke via the existing grants DELETE endpoint), new
+`MoveResourceModal.tsx` wires up the previously-unused `moveResource()` client
+function, `RestrictionsModal.tsx`'s "Clear all" goes sequential (was `Promise.all`,
+now tolerant of the new last-admin 409), `Permissions.tsx` drops Previous/Next
+pagination for a "Show all" loop at `PAGE_SIZE = 3`.
 
 **Phase 2 storage is built and verified** against a real local PostgreSQL 18 install:
 `sqlalchemy[asyncio]` + `asyncpg` + `alembic` added → `infrastructure/db/`

@@ -174,4 +174,11 @@ the full file guide.
   still has no API route.
 - A `Restriction`/whitelist mechanism exists to gate access at Admin's discretion (see
   `CLAUDE.md`'s "Restrictions (whitelist gate)"); both `SUPER_EDITOR` and
-  `SUPER_VIEWER` bypass it.
+  `SUPER_VIEWER` bypass it. The first restriction on a resource auto-whitelists the
+  acting admin, and removing the last `Admin`-role entry while the resource would stay
+  gated is blocked, to avoid orphaning access.
+- The frontend only lets you create/delete Folder and Group resources (real, empty-only
+  deletes). Map/Layer are never created or deleted from the UI — this server doesn't
+  own that data — the UI instead offers "Remove access" there, which revokes only your
+  own grant. No service-to-service auth exists yet for the system that owns that data
+  to call the (still-open) `POST`/`DELETE /resources` endpoints directly.

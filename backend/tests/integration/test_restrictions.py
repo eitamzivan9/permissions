@@ -35,7 +35,11 @@ async def _effective_role(client, token, query):
     return catalog.json()["items"][0]["effective_role"]
 
 
-async def test_restriction_gates_unlisted_actor_including_the_setting_admin(client):
+async def test_restriction_auto_whitelists_the_setting_admin(client):
+    """The FIRST restriction ever set on a resource auto-whitelists the
+    acting admin as Admin, in addition to whoever they explicitly listed —
+    so setting a restriction can never lock the setting admin out of their
+    own first restriction."""
     root_token = await login_as(client, ROOT)
     resp = await _restrict_user(client, root_token, MAP_ID, VP_SUBORDINATE, "viewer")
     assert resp.status_code == 200
@@ -43,19 +47,29 @@ async def test_restriction_gates_unlisted_actor_including_the_setting_admin(clie
     sub_token = await login_as(client, VP_SUBORDINATE)
     assert await _effective_role(client, sub_token, "Zoning Districts") == "viewer"
 
-    # root set the restriction without listing themselves -> now locked out,
-    # even though they were Admin (via bootstrap) a moment ago.
-    assert await _effective_role(client, root_token, "Zoning Districts") is None
+    # root did NOT explicitly list themselves, but is auto-whitelisted as
+    # Admin since this was the first restriction on this resource.
+    assert await _effective_role(client, root_token, "Zoning Districts") == "admin"
 
     outsider_token = await login_as(client, OUTSIDER)
     assert await _effective_role(client, outsider_token, "Zoning Districts") is None
 
 
 async def test_locked_out_admin_cannot_manage_further_restrictions(client):
-    """No self-lockout guard, by design: once root's own restriction excludes
-    them, they've lost Admin there and can't even fix it themselves anymore."""
+    """Self-lockout via one's own FIRST restriction is no longer possible
+    (see test_restriction_auto_whitelists_the_setting_admin), but locking a
+    DIFFERENT admin out is still possible: VP (also Admin at MAP_ID, via a
+    direct grant, alongside root's inherited Admin from the workspace) sets
+    a restriction naming only themselves -- root, who isn't listed, is
+    gated out and can no longer manage restrictions there either."""
     root_token = await login_as(client, ROOT)
-    await _restrict_user(client, root_token, MAP_ID, VP_SUBORDINATE, "viewer")
+    await _grant_user(client, root_token, MAP_ID, VP, "admin")
+
+    vp_token = await login_as(client, VP)
+    resp = await _restrict_user(client, vp_token, MAP_ID, VP_SUBORDINATE, "viewer")
+    assert resp.status_code == 200
+
+    assert await _effective_role(client, root_token, "Zoning Districts") is None
 
     followup = await _restrict_user(client, root_token, MAP_ID, OUTSIDER, "viewer")
     assert followup.status_code == 403
@@ -142,25 +156,69 @@ async def test_list_restrictions_requires_admin(client):
 
 
 async def test_delete_restriction_removes_the_gate(client):
-    """A USER-grantee restriction can never name the setting admin themselves
-    ('manager of self' is false in the org chart, same as ordinary grants) --
-    so root locks itself out here, and only a superuser can clean it up. This
-    doubles as the documented recovery path for the self-lockout scenario."""
+    """VP (granted Admin directly on OTHER_MAP_ID) sets a restriction naming
+    only themselves, locking root out (root's Admin there is inherited, not
+    listed). A superuser cleans it up -- but must remove the non-admin entry
+    first: the last-Admin guard blocks removing VP's auto-whitelisted Admin
+    entry while VP_SUBORDINATE's entry still exists, since that would leave
+    the resource gated with no admin. Removing the truly last remaining row
+    (even Admin-role) is always allowed -- that's a full unrestrict."""
     root_token = await login_as(client, ROOT)
-    await _restrict_user(client, root_token, OTHER_MAP_ID, VP_SUBORDINATE, "viewer")
+    await _grant_user(client, root_token, OTHER_MAP_ID, VP, "admin")
+
+    vp_token = await login_as(client, VP)
+    await _restrict_user(client, vp_token, OTHER_MAP_ID, VP_SUBORDINATE, "viewer")
 
     outsider_token = await login_as(client, OUTSIDER)
     assert await _effective_role(client, outsider_token, "Property Parcels") is None
     assert await _effective_role(client, root_token, "Property Parcels") is None
+    assert await _effective_role(client, vp_token, "Property Parcels") == "admin"
 
     await client.app_state.system_role_repository.grant_system_role(
         OUTSIDER, SystemRole.SUPER_EDITOR, granted_by="test"
     )
     super_token = await login_as(client, OUTSIDER)
+
+    blocked = await client.delete(
+        f"/restrictions/{OTHER_MAP_ID}/user/{VP}", headers=auth_headers(super_token)
+    )
+    assert blocked.status_code == 409
+
     del_resp = await client.delete(
         f"/restrictions/{OTHER_MAP_ID}/user/{VP_SUBORDINATE}", headers=auth_headers(super_token)
     )
     assert del_resp.status_code == 204
 
-    # gate fully lifted -> root's bootstrap Admin grant resolves normally again
+    del_resp = await client.delete(
+        f"/restrictions/{OTHER_MAP_ID}/user/{VP}", headers=auth_headers(super_token)
+    )
+    assert del_resp.status_code == 204
+
+    # gate fully lifted -> root's inherited Admin grant resolves normally again
     assert await _effective_role(client, root_token, "Property Parcels") == "admin"
+
+
+async def test_setting_restriction_auto_adds_actor_as_admin_via_api(client):
+    root_token = await login_as(client, ROOT)
+    await _restrict_user(client, root_token, OTHER_MAP_ID, VP_SUBORDINATE, "viewer")
+
+    resp = await client.get(f"/restrictions/{OTHER_MAP_ID}", headers=auth_headers(root_token))
+    assert resp.status_code == 200
+    entries = {e["user_id"]: e["role"] for e in resp.json()}
+    assert entries[VP_SUBORDINATE] == "viewer"
+    assert entries[ROOT] == "admin"
+
+
+async def test_removing_last_admin_restriction_via_api_is_409(client):
+    root_token = await login_as(client, ROOT)
+    await _restrict_user(client, root_token, OTHER_MAP_ID, VP_SUBORDINATE, "viewer")
+
+    resp = await client.delete(
+        f"/restrictions/{OTHER_MAP_ID}/user/{ROOT}", headers=auth_headers(root_token)
+    )
+    assert resp.status_code == 409
+
+    still_there = await client.get(
+        f"/restrictions/{OTHER_MAP_ID}", headers=auth_headers(root_token)
+    )
+    assert any(e["user_id"] == ROOT for e in still_there.json())

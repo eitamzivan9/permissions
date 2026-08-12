@@ -21,6 +21,15 @@ async def grantee_passes_org_chart_check(
     if grantee.grantee_type is GranteeType.TEAM:
         return True
     assert grantee.user_id is not None
+    if grantee.user_id == actor_id:
+        # Nobody is their own org-chart manager (is_manager_of(x, x) is
+        # always False), but that's not the intent of the org-chart rule —
+        # it exists to gate delegation to OTHER people. An actor managing
+        # their own entry (e.g. self-listing on a restriction whitelist)
+        # isn't delegation at all, so the org-chart check doesn't apply.
+        # Role-rank gates (Manager+/Admin) still apply unchanged wherever
+        # this is called from.
+        return True
     if await is_within_actors_personal_workspace(resource_repository, actor_id, resource_id):
         return True
     return await org_hierarchy.is_manager_of(actor_id, grantee.user_id)

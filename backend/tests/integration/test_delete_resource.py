@@ -32,7 +32,20 @@ async def _delete(client, token, resource_id):
     return await client.delete(f"/resources/{resource_id}", headers=auth_headers(token))
 
 
+async def _create(client, token, *, type, name, parent_id):
+    resp = await client.post(
+        "/resources",
+        headers=auth_headers(token),
+        json={"type": type, "name": name, "parent_id": parent_id},
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
 async def test_admin_deletes_resource_and_its_subtree(client):
+    """Also doubles as the regression guard proving Map is deliberately
+    exempt from the Folder/Group/Workspace empty-check — map-zoning has
+    descendant layers and must still cascade-delete unconditionally."""
     root_token = await login_as(client, ROOT)
     resp = await _delete(client, root_token, MAP_ID)
     assert resp.status_code == 204
@@ -91,13 +104,38 @@ async def test_delete_nonexistent_resource_is_404(client):
     assert resp.status_code == 404
 
 
+async def test_delete_non_empty_folder_is_conflict(client):
+    """Folder/Group/Workspace only ever hard-delete when empty — this
+    permissions server doesn't own the Map/Layer data nested underneath, so
+    it must never bulk-wipe it via a folder-level delete."""
+    root_token = await login_as(client, ROOT)
+    resp = await _delete(client, root_token, FOLDER_ID)
+    assert resp.status_code == 409
+
+    catalog = await client.get("/catalog", headers=auth_headers(root_token))
+    assert _find(catalog.json()["items"], FOLDER_ID) is not None
+
+
 async def test_admin_at_subtree_but_not_root_can_delete_only_their_subtree(client):
     root_token = await login_as(client, ROOT)
-    await _grant_user(client, root_token, FOLDER_ID, VP_SUBORDINATE, "admin")
+    empty_folder_id = await _create(
+        client, root_token, type="folder", name="Empty Subfolder", parent_id=FOLDER_ID
+    )
+    await _grant_user(client, root_token, empty_folder_id, VP_SUBORDINATE, "admin")
 
     sub_token = await login_as(client, VP_SUBORDINATE)
-    resp = await _delete(client, sub_token, FOLDER_ID)
+    resp = await _delete(client, sub_token, empty_folder_id)
     assert resp.status_code == 204
 
     catalog = await client.get("/catalog", headers=auth_headers(root_token))
-    assert _find(catalog.json()["items"], FOLDER_ID) is None
+    assert _find(catalog.json()["items"], empty_folder_id) is None
+
+
+async def test_delete_empty_folder_succeeds(client):
+    root_token = await login_as(client, ROOT)
+    empty_folder_id = await _create(
+        client, root_token, type="folder", name="Another Empty Folder", parent_id=FOLDER_ID
+    )
+
+    resp = await _delete(client, root_token, empty_folder_id)
+    assert resp.status_code == 204

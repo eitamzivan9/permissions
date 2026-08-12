@@ -6,7 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import CreateTeamWorkspaceModal from "../components/CreateTeamWorkspaceModal";
 import ResourceNode from "../components/ResourceNode";
 
-const PAGE_SIZE = 4;
+const PAGE_SIZE = 3;
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function Permissions() {
@@ -15,30 +15,35 @@ export default function Permissions() {
 
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
 
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [loadedPages, setLoadedPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
-  // Debounce the search box into `query`, resetting to page 1 on change.
+  // Debounce the search box into `query`.
   useEffect(() => {
     const handle = setTimeout(() => {
       setQuery(searchInput);
-      setPage(1);
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
   }, [searchInput]);
 
+  // Always (re)loads just the first page — used on initial load, on search
+  // change, and after any modal action refetches the catalog. A prior
+  // "Show all" expansion collapses back to the first page in that case,
+  // same as this app's existing pattern elsewhere for post-change refetches.
   const loadCatalog = useCallback(() => {
     setIsLoading(true);
     setError(null);
-    getCatalog({ q: query || undefined, page, page_size: PAGE_SIZE })
+    getCatalog({ q: query || undefined, page: 1, page_size: PAGE_SIZE })
       .then((response) => {
         setItems(response.items);
         setTotal(response.total);
+        setLoadedPages(1);
       })
       .catch((err: unknown) => {
         if (err instanceof UnauthorizedError) {
@@ -51,18 +56,62 @@ export default function Permissions() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, [query, page, logout, navigate]);
+  }, [query, logout, navigate]);
 
   useEffect(() => {
     loadCatalog();
   }, [loadCatalog]);
 
+  // `total` is documented (CatalogService.get_catalog) as reflecting the
+  // UNFILTERED universe — it includes other users' personal workspaces that
+  // are hidden from this caller and will never actually appear on ANY page.
+  // So looping until `accumulated.length >= total` can spin forever (found
+  // via manual UI testing: it did, thousands of requests deep). The only
+  // sound termination bound is the page COUNT implied by total/page_size —
+  // some of those pages may legitimately come back with fewer items than
+  // page_size, or even zero, once hidden items are filtered out.
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Kept separate from `isLoading`/loadCatalog's flag on purpose: flipping
+  // the main isLoading flag would unmount the whole tree below (see the
+  // "never gate the tree on isLoading alone" note near the render), closing
+  // any modal a user has open in an already-visible ResourceNode while more
+  // results stream in behind it.
+  function handleShowAll() {
+    setIsLoadingMore(true);
+    setError(null);
+    let accumulated = items;
+    let nextPage = loadedPages + 1;
+
+    function fetchNext(): Promise<void> {
+      if (nextPage > totalPages) return Promise.resolve();
+      return getCatalog({ q: query || undefined, page: nextPage, page_size: PAGE_SIZE }).then(
+        (response) => {
+          accumulated = [...accumulated, ...response.items];
+          setItems(accumulated);
+          setLoadedPages(nextPage);
+          nextPage += 1;
+          return fetchNext();
+        },
+      );
+    }
+
+    fetchNext()
+      .catch((err: unknown) => {
+        if (err instanceof UnauthorizedError) {
+          logout();
+          navigate("/login", { replace: true });
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Failed to load the rest of the catalog.");
+      })
+      .finally(() => setIsLoadingMore(false));
+  }
+
   function handleLogout() {
     logout();
     navigate("/login", { replace: true });
   }
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -140,25 +189,19 @@ export default function Permissions() {
 
         {total > 0 && (
           <div className="mt-6 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1 || isLoading}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Previous
-            </button>
             <span className="text-sm text-slate-500">
-              Page {page} of {totalPages} &middot; {total} results
+              Showing {items.length} of {total} results
             </span>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages || isLoading}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Next
-            </button>
+            {loadedPages < totalPages && (
+              <button
+                type="button"
+                onClick={handleShowAll}
+                disabled={isLoadingMore}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isLoadingMore ? "Loading…" : "Show all"}
+              </button>
+            )}
           </div>
         )}
       </main>

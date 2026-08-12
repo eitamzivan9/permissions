@@ -366,9 +366,13 @@ export function moveResource(params: MoveResourceParams): Promise<Resource> {
   });
 }
 
-// Admin-only. Deletes resourceId AND its entire subtree, along with every
-// grant/restriction anywhere in it — irreversible, no confirmation at this
-// layer (the caller must confirm before calling this).
+// Admin-only. For Workspace/Folder/Group, only succeeds when resourceId has
+// zero children (409 otherwise) — this server doesn't own Map/Layer data, so
+// it never bulk-deletes it via a folder-level delete. Map/Layer still
+// cascade-delete their whole subtree along with every grant/restriction in
+// it, unconditionally — but the frontend never calls this for Map/Layer
+// (see "Remove access" via deleteGrant instead); this path stays for the
+// future server-to-server flow. Irreversible, no confirmation at this layer.
 export function deleteResource(resourceId: string): Promise<void> {
   return request<void>(`/resources/${resourceId}`, { method: "DELETE" });
 }

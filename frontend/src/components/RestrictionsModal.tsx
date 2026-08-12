@@ -117,26 +117,36 @@ export default function RestrictionsModal({
     setIsSubmitting(true);
     setActionError(null);
     setSuccessMessage(null);
-    try {
-      await Promise.all(
-        restrictions.map((restriction) =>
-          deleteRestriction({
-            resourceId,
-            granteeType: restriction.grantee_type,
-            granteeId:
-              (restriction.grantee_type === "user" ? restriction.user_id : restriction.team_id) ??
-              "",
-          }),
-        ),
-      );
-      setSuccessMessage("Cleared the whitelist — access here now falls back to ordinary grants.");
-      onChanged();
-      loadAll();
-    } catch (error: unknown) {
-      setActionError(error instanceof Error ? error.message : "Failed to clear restrictions.");
-    } finally {
-      setIsSubmitting(false);
+    // Sequential, not Promise.all: the backend blocks removing the last
+    // Admin-role entry while other entries remain, so entries must be
+    // removed one at a time (parallel deletes could each pass a stale
+    // "another admin remains" check before either commits). This also lets
+    // us report exactly which entries couldn't be cleared instead of
+    // failing the whole batch on the first rejection.
+    const failures: string[] = [];
+    for (const restriction of restrictions) {
+      try {
+        await deleteRestriction({
+          resourceId,
+          granteeType: restriction.grantee_type,
+          granteeId:
+            (restriction.grantee_type === "user" ? restriction.user_id : restriction.team_id) ??
+            "",
+        });
+      } catch {
+        failures.push(granteeLabel(restriction));
+      }
     }
+    if (failures.length > 0) {
+      setActionError(
+        `Could not remove: ${failures.join(", ")} (at least one Admin entry must remain while others are whitelisted).`,
+      );
+    } else {
+      setSuccessMessage("Cleared the whitelist — access here now falls back to ordinary grants.");
+    }
+    onChanged();
+    loadAll();
+    setIsSubmitting(false);
   }
 
   function granteeLabel(restriction: Restriction): string {

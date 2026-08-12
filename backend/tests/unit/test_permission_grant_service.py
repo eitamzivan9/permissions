@@ -178,6 +178,45 @@ async def test_revoke_is_noop_when_no_existing_grant(permission_grant_service, g
     await permission_grant_service.revoke(ACTOR, SUBORDINATE_GRANTEE, LAYER_ID)  # no raise
 
 
+async def test_revoke_succeeds_for_self_even_without_any_manage_authority(
+    permission_grant_service, grant_repo
+):
+    """Self-revocation must work for an ordinary Viewer/Editor with no
+    Manager/Admin role anywhere on the resource and no org-chart authority
+    over anyone — 'remove my own access' isn't delegation."""
+    self_grantee = Grantee(GranteeType.USER, user_id=ACTOR.id)
+    await grant_repo.upsert_grant(self_grantee, LAYER_ID, Role.VIEWER, granted_by="someone-else")
+
+    await permission_grant_service.revoke(ACTOR, self_grantee, LAYER_ID)
+    assert await grant_repo.get_grant(self_grantee, LAYER_ID) is None
+
+
+async def test_revoke_succeeds_for_self_regardless_of_org_chart_position(
+    permission_grant_service, grant_repo
+):
+    """Even an Admin can't be their own org-chart superior — self-revocation
+    must not go through the ordinary org-chart delegation check at all."""
+    self_grantee = Grantee(GranteeType.USER, user_id=ACTOR.id)
+    await grant_repo.upsert_grant(self_grantee, LAYER_ID, Role.ADMIN, granted_by=ACTOR.id)
+
+    await permission_grant_service.revoke(ACTOR, self_grantee, LAYER_ID)
+    assert await grant_repo.get_grant(self_grantee, LAYER_ID) is None
+
+
+async def test_revoke_for_someone_else_is_unaffected_by_self_revocation_bypass(
+    permission_grant_service, grant_repo
+):
+    """Regression guard: the self-revocation bypass must not leak into
+    revoking OTHER grantees' access — that still requires ordinary
+    can_manage authority."""
+    await grant_repo.upsert_grant(
+        SUBORDINATE_GRANTEE, LAYER_ID, Role.VIEWER, granted_by="someone-else"
+    )
+    with pytest.raises(ForbiddenError):
+        await permission_grant_service.revoke(ACTOR, SUBORDINATE_GRANTEE, LAYER_ID)
+    assert await grant_repo.get_grant(SUBORDINATE_GRANTEE, LAYER_ID) is not None
+
+
 async def test_list_manageable_users_returns_only_transitive_subordinates(
     permission_grant_service,
 ):

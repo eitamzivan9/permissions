@@ -13,6 +13,7 @@ from permissions_server.domain.entities import (
     ResourceType,
     Role,
     SystemRole,
+    is_organizational,
     is_valid_child,
     role_rank,
 )
@@ -127,11 +128,13 @@ class ResourceService:
 
     async def delete(self, actor: AuthenticatedUser, resource_id: str) -> None:
         """Admin-only, same rank as move()'s source-resource check — deleting
-        is at least as destructive as moving one away. Cascades to the whole
-        subtree: every grant and restriction anywhere in it is cleaned up
-        first (no FK-cascade from resources onto those tables), then the
-        resource rows themselves, in one pass, never a second near-copy path
-        per resource type."""
+        is at least as destructive as moving one away. For organizational
+        types (Workspace/Folder/Group) this only ever removes a single empty
+        node — see is_organizational(). Map/Layer keep the original
+        unconditional-cascade behavior: every grant and restriction anywhere
+        in the subtree is cleaned up first (no FK-cascade from resources onto
+        those tables), then the resource rows themselves, in one pass, never
+        a second near-copy path per resource type."""
         resource = await self._resource_repository.get_by_id(resource_id)
         if resource is None:
             raise NotFoundError(f"no resource with id {resource_id}")
@@ -139,6 +142,14 @@ class ResourceService:
         actor_role = await self._access_resolver.effective_role(resource_id, user_id=actor.id)
         if actor_role is not Role.ADMIN:
             raise ForbiddenError(f"{actor.id} is not Admin at {resource_id}")
+
+        if is_organizational(resource.type):
+            children = await self._resource_repository.children_of(resource_id)
+            if children:
+                raise ConflictError(
+                    f"{resource_id} has {len(children)} child resource(s); "
+                    "remove them before deleting"
+                )
 
         ids = await self._resource_repository.descendant_ids(resource_id)
         await self._grant_repository.delete_grants_for_resource_ids(ids)

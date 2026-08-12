@@ -7,8 +7,15 @@ from __future__ import annotations
 from permissions_server.application.access_resolver import AccessResolver
 from permissions_server.application.audit_service import AuditService
 from permissions_server.application.delegation_rules import grantee_passes_org_chart_check
-from permissions_server.domain.entities import AuthenticatedUser, Grantee, Restriction, Role, SystemRole
-from permissions_server.domain.errors import ForbiddenError
+from permissions_server.domain.entities import (
+    AuthenticatedUser,
+    Grantee,
+    GranteeType,
+    Restriction,
+    Role,
+    SystemRole,
+)
+from permissions_server.domain.errors import ConflictError, ForbiddenError
 from permissions_server.domain.ports.org_hierarchy import OrgHierarchy
 from permissions_server.domain.ports.resource_repository import ResourceRepository
 from permissions_server.domain.ports.restriction_repository import RestrictionRepository
@@ -56,6 +63,13 @@ class RestrictionService:
             raise ForbiddenError(
                 f"{actor.id} may not restrict {resource_id} for {grantee}"
             )
+        # Computed before the upsert below, so a resource with zero
+        # restriction rows today is recognized as "first restriction" even
+        # though we're about to write one.
+        is_first_restriction = not await self._restriction_repository.list_restrictions_for_resource(
+            resource_id
+        )
+
         existing = await self._restriction_repository.get_restriction(grantee, resource_id)
         result = await self._restriction_repository.upsert_restriction(
             grantee, resource_id, role, granted_by=actor.id
@@ -66,6 +80,19 @@ class RestrictionService:
             await self._audit_service.record_restriction_role_change(
                 actor, grantee, resource_id, role
             )
+
+        # Whitelisting anyone at all on a resource that had no restriction
+        # before now gates that resource completely (see AccessResolver's
+        # nearest_restriction precedence) — without this, the acting admin
+        # could lock themselves out with their very first restriction. Skip
+        # if they already explicitly whitelisted themselves in this same call.
+        actor_grantee = Grantee(GranteeType.USER, user_id=actor.id)
+        if is_first_restriction and grantee != actor_grantee:
+            await self._restriction_repository.upsert_restriction(
+                actor_grantee, resource_id, Role.ADMIN, granted_by=actor.id
+            )
+            await self._audit_service.record_restrict(actor, actor_grantee, resource_id, Role.ADMIN)
+
         return result
 
     async def revoke_restriction(
@@ -78,5 +105,24 @@ class RestrictionService:
             raise ForbiddenError(
                 f"{actor.id} may not unrestrict {resource_id} for {grantee}"
             )
+
+        if existing.role is Role.ADMIN:
+            all_restrictions = await self._restriction_repository.list_restrictions_for_resource(
+                resource_id
+            )
+            remaining = [r for r in all_restrictions if r.grantee != grantee]
+            remaining_admins = [r for r in remaining if r.role is Role.ADMIN]
+            # Only a problem if the resource STAYS gated afterward (other
+            # restriction rows remain) with zero admins left to manage it.
+            # Removing the very last restriction row entirely — even an
+            # Admin-role one — is always fine: that's a full unrestrict, not
+            # an orphan, and "Clear all" needs to be able to reach zero.
+            if remaining and not remaining_admins:
+                raise ConflictError(
+                    f"cannot remove the last Admin-role restriction entry on {resource_id} "
+                    "while other restriction entries remain — it would leave the resource "
+                    "gated with no one able to manage its whitelist"
+                )
+
         await self._restriction_repository.delete_restriction(grantee, resource_id)
         await self._audit_service.record_unrestrict(actor, grantee, resource_id, existing.role)

@@ -148,7 +148,27 @@ orchestrated — validate → authorize → write → auto-grant, never duplicat
   hold `effective_role` ≥ Editor at `parent_id` (restriction-aware for free, since it
   goes through `AccessResolver`); the creator is auto-granted Admin on the new resource
   via `PermissionGrantService.bootstrap_admin_grant()` (bypasses `can_manage` —
-  inapplicable on a brand-new resource with no admin yet).
+  inapplicable on a brand-new resource with no admin yet). The endpoint itself accepts
+  any `ResourceType` — **no backend restriction** — but `CreateResourceModal.tsx` only
+  offers Folder and Group (confirmed with the project owner): this server doesn't own
+  Map/Layer data, so creating those is meant to happen server-to-server, not from this
+  UI. That server-to-server path isn't built yet (no service-credential auth exists) —
+  `POST /resources` stays open and callable manually in the meantime; see "Known
+  deferred work" below.
+- `delete(actor, resource_id)` — `DELETE /resources/{id}`. Admin-only, same as before,
+  but now type-dependent: for Workspace/Folder/Group (`is_organizational()` in
+  `domain/entities.py`) it only succeeds when `children_of(resource_id)` is empty (409
+  `ConflictError` otherwise) — this server must never bulk-wipe Map/Layer data nested
+  under a folder-level delete. Map/Layer keep the original unconditional-cascade
+  delete (every grant/restriction in the subtree cleaned up, then the resource rows) —
+  deliberately untouched, since Map is structurally capable of holding children too but
+  represents data this server doesn't own. The frontend never calls this endpoint for
+  Map/Layer at all: `ResourceNode.tsx`'s button is "Delete" (Workspace/Folder/Group,
+  Admin-gated) or "Remove access" (Map/Layer, any role) — the latter calls
+  `DELETE /grants/{resource_id}/user/{actor_id}` instead, revoking only the acting
+  user's own grant, never touching the Resource row. Self-revocation this way is
+  always allowed regardless of role-rank or org-chart position — see "Delegation
+  rule" below.
 - `get_or_create_my_workspace(actor)` — `GET /resources/my-workspace`. Every
   authenticated user gets exactly one personal root Workspace, identified by
   `Resource.owner_id == actor.id` (`ResourceRepository.find_workspace_by_owner()`).
@@ -165,8 +185,11 @@ orchestrated — validate → authorize → write → auto-grant, never duplicat
   `isSuperEditor(user)` (reads `Me.system_roles` from `/auth/me`).
 - `move(actor, resource_id, new_parent_id)` — `PATCH /resources/{id}/move`. Requires
   Admin at the resource being moved and Editor+ at the destination; rejects moving a
-  resource into its own subtree (checked via `path_to_root(new_parent_id)`). No
-  frontend UI for this yet — API only.
+  resource into its own subtree (checked via `path_to_root(new_parent_id)`). Frontend:
+  `MoveResourceModal.tsx` (search-and-pick destination, not drag-and-drop — deliberate,
+  the tree component has no drag infrastructure and a picker gives a confirm step
+  before a structural change), wired into `ResourceNode.tsx` behind a "Move" button
+  gated on `effective_role === "admin"` (mirrors the backend's source-resource check).
 
 **Personal-workspace delegation bypass**: normally granting/restricting a *user*
 grantee requires the actor be transitively above that user in the org chart (see
@@ -223,11 +246,26 @@ no equivalent carve-out (Admin is already the ceiling everywhere).
 Only Admin (or `SUPER_EDITOR`) may set/revoke a restriction —
 `RestrictionService.can_set_restriction`, never Manager — via
 `PUT`/`DELETE /restrictions/{resource_id}/{grantee_type}/{grantee_id}`, same org-chart
-+ personal-workspace-bypass rule as grants (`delegation_rules.py`, above). No
-self-lockout guard: an Admin who restricts a resource without listing themselves can
-legitimately lose access — intended. Frontend: `RestrictionsModal.tsx`, wired into
-`ResourceNode.tsx` behind an "Restrictions" button gated on `effective_role === "admin"`
-(mirrors the backend check exactly).
++ personal-workspace-bypass rule as grants (`delegation_rules.py`, above). Frontend:
+`RestrictionsModal.tsx`, wired into `ResourceNode.tsx` behind an "Restrictions" button
+gated on `effective_role === "admin"` (mirrors the backend check exactly).
+
+**Auto-whitelist + last-admin guard (confirmed with the project owner — supersedes the
+old "no self-lockout guard" behavior)**: `RestrictionService.set_restriction()` — the
+FIRST restriction ever placed on a resource (zero existing restriction rows there)
+auto-whitelists the acting admin as `Admin`, in addition to whoever they explicitly
+listed, so setting a restriction can never lock the setting admin out of their own
+first restriction. `revoke_restriction()` enforces the inverse invariant: removing an
+`Admin`-role restriction entry is rejected (409 `ConflictError`) if doing so would
+leave the resource STILL gated (other restriction rows remain) with zero `Admin`-role
+entries left — "we don't want orphaned object access." Removing the truly last
+restriction row overall is always allowed, even if it's `Admin`-role — that's a full
+unrestrict (falls back to ordinary grants), not an orphan, and `RestrictionsModal.tsx`'s
+"Clear all" needs to be able to reach zero (it loops single deletes sequentially, not
+`Promise.all`, so a rejected entry doesn't abort ones that would otherwise succeed).
+Self-lockout is still possible via a **different** admin's restriction that doesn't
+list you (e.g. two admins on the same resource, one restricts naming only themselves)
+— only your own *first* restriction can no longer lock you out.
 
 This **reverses part of** the "Known, deliberate departures" universal-visibility
 decision below — see that section for what's still true (visibility) vs. what changed
@@ -260,8 +298,18 @@ descendant (e.g. a Map is fetchable if the caller has a role on just one Layer i
 it, since the map has to load to render that layer). Search matches any resource by
 name at any depth, returning it with its full subtree. A "manage access" affordance
 appears only where `can_manage` is true (effective role is Manager or Admin). A
-"+ Create" affordance (`CreateResourceModal.tsx`) appears at Editor+; a "Restrictions"
-affordance (`RestrictionsModal.tsx`) appears at Admin only.
+"+ Create" affordance (`CreateResourceModal.tsx`, Folder/Group only — see "Resource
+creation..." above) appears at Editor+; a "Restrictions" affordance
+(`RestrictionsModal.tsx`) and a "Move" affordance (`MoveResourceModal.tsx`) appear at
+Admin only. Workspace/Folder/Group show a "Delete" affordance at Admin (empty-only, see
+above); Map/Layer show "Remove access" instead, at any role that holds one.
+
+The catalog list itself is paginated at `PAGE_SIZE = 3` (`Permissions.tsx`) with a
+"Show all" control instead of Previous/Next — clicking it loops the same paginated
+`getCatalog` client call (never an unpaginated endpoint, see "Scale assumptions" below)
+to fetch the rest and appends into one flat, scrollable list, hiding the button once
+everything is loaded. Kept on its own loading flag, separate from the primary
+`isLoading`, for the same reason described next.
 
 `Permissions.tsx`'s catalog render must never gate the resource-tree block on
 `isLoading` alone (only on `items.length === 0`, for the true first load) — every modal
@@ -283,6 +331,21 @@ Team grantees skip the org-chart check entirely — a Team isn't a person in an 
 chart, only the role-rank check applies. `SUPER_EDITOR` bypasses both checks. Always
 re-checked server-side on every write (`grant()`/`revoke()`) — a `can_manage` flag
 returned to the UI is a display hint only, never a trust boundary.
+
+**Self-revocation exception (confirmed with the project owner)**: `revoke()` allows an
+actor to drop their OWN grant (`grantee.user_id == actor.id`) unconditionally —
+regardless of role-rank or org-chart position — since "remove my own access" isn't
+delegation to anyone. Deliberately **not** folded into `can_manage()` itself:
+`can_manage()` is shared with `grant()`, and bypassing role-rank there would let a
+low-rank grantee self-*escalate*, not just self-revoke — kept as its own explicit
+branch in `revoke()` instead. This is what powers the frontend's "Remove access"
+button on Map/Layer nodes (see "Resource creation, personal & team workspaces, move"
+above). Separately, `delegation_rules.py`'s `grantee_passes_org_chart_check()` also
+gained a narrower self-grantee exception (an actor managing their own restriction
+whitelist entry, or their own grant, always passes the *org-chart* check specifically
+— nobody is their own org-chart manager) — shared by both `can_manage` and
+`can_set_restriction` since that helper is meant to exist exactly once; role-rank gates
+(Manager+/Admin) still apply unchanged wherever it's called from.
 
 ## Audit log
 
@@ -340,6 +403,13 @@ restricted resource's name/position still shows in the catalog for everyone, onl
   now also the source `scripts/seed.py` loads into Postgres), real org hierarchy
   source (currently the JSON-derived fixture) — likely AD/ADFS groups eventually.
   (Real Postgres repositories are done — see "Deployment context" above.)
+- No service-to-service auth mechanism exists yet for the system that owns Map/Layer
+  data to call `POST`/`DELETE /resources` directly (create/delete a Map or Layer
+  resource here, then presumably notify back). Those endpoints stay open to any
+  authenticated caller in the meantime (confirmed with the project owner) — only the
+  frontend is restricted from creating/deleting Map/Layer (see "Resource creation,
+  personal & team workspaces, move" above). Don't build a service-credential path
+  speculatively; ask first when this becomes real.
 - No API route to toggle `inherits_from_parent` — resource *creation* now has full API
   coverage (see "Resource creation, personal & team workspaces, move" above:
   `POST /resources`, `GET /resources/my-workspace`, `POST /resources/workspaces`,

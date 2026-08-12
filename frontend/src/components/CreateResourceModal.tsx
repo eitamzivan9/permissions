@@ -10,11 +10,12 @@ interface CreateResourceModalProps {
   onCreated: () => void;
 }
 
+// Map/Layer are never frontend-creatable — this permissions server doesn't
+// own that data, creation is meant to happen server-to-server. Only these
+// two purely-organizational types are offered here.
 const TYPE_OPTIONS: { value: ResourceType; label: string }[] = [
   { value: "folder", label: "Folder" },
-  { value: "map", label: "Map" },
   { value: "group", label: "Group" },
-  { value: "layer", label: "Layer" },
 ];
 
 export default function CreateResourceModal({

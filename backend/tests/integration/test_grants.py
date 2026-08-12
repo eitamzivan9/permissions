@@ -179,3 +179,22 @@ async def test_grant_target_of_nonexistent_resource_is_404(client):
     root_token = await login_as(client, ROOT)
     resp = await _grant_user(client, root_token, "resource-does-not-exist", VP, "editor")
     assert resp.status_code == 404
+
+
+async def test_user_can_revoke_their_own_grant_without_any_manage_authority(client):
+    """'Remove access' (frontend) must work for an ordinary Viewer with no
+    Manager/Admin role and no org-chart authority over anyone — dropping
+    your OWN access is never delegation."""
+    root_token = await login_as(client, ROOT)
+    await _grant_user(client, root_token, MAP_ID, VP_SUBORDINATE, "viewer")
+
+    sub_token = await login_as(client, VP_SUBORDINATE)
+    resp = await client.delete(
+        f"/grants/{MAP_ID}/user/{VP_SUBORDINATE}", headers=auth_headers(sub_token)
+    )
+    assert resp.status_code == 204
+
+    catalog = await client.get(
+        "/catalog", headers=auth_headers(sub_token), params={"q": "Zoning Districts"}
+    )
+    assert catalog.json()["items"][0]["effective_role"] is None

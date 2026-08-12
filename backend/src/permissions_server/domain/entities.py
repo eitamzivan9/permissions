@@ -37,6 +37,23 @@ def is_valid_child(parent_type: ResourceType | None, child_type: ResourceType) -
     return child_type in _ALLOWED_CHILD_TYPES[parent_type]
 
 
+# Types this permissions server treats as its own organizational structure —
+# deleting one is a real, permanent removal, but only once it's empty (never a
+# bulk-wipe of whatever's nested under it). Deliberately hand-listed rather than
+# derived from _ALLOWED_CHILD_TYPES: Map is structurally capable of holding
+# children too (Group/Layer), but Map/Layer represent data this server doesn't
+# own — their deletion stays the existing unconditional-cascade path, since real
+# deletion of that data is meant to be driven by the system that owns it, not by
+# an empty-check here. Don't "simplify" this into bool(_ALLOWED_CHILD_TYPES[t]).
+_ORGANIZATIONAL_TYPES: frozenset[ResourceType] = frozenset(
+    {ResourceType.WORKSPACE, ResourceType.FOLDER, ResourceType.GROUP}
+)
+
+
+def is_organizational(resource_type: ResourceType) -> bool:
+    return resource_type in _ORGANIZATIONAL_TYPES
+
+
 @dataclass(frozen=True, slots=True)
 class Resource:
     """One shape for all 5 resource kinds — no separate Map/Layer dataclasses.

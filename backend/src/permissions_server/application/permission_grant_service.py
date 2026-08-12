@@ -99,7 +99,20 @@ class PermissionGrantService:
         existing = await self._grant_repository.get_grant(grantee, resource_id)
         if existing is None:
             return
-        if not await self.can_manage(actor, grantee, resource_id, existing.role):
+
+        is_self_revocation = (
+            grantee.grantee_type is GranteeType.USER and grantee.user_id == actor.id
+        )
+        # Self-revocation is always allowed, regardless of role-rank or the
+        # org-chart delegation rule: dropping YOUR OWN access isn't
+        # delegation to anyone, it's just "remove access" for the person
+        # already holding it. Deliberately NOT folded into can_manage()
+        # itself — can_manage() is shared with grant(), and bypassing
+        # role-rank there would let a low-rank grantee self-ESCALATE, not
+        # just self-revoke. Kept as its own explicit branch here instead.
+        if not is_self_revocation and not await self.can_manage(
+            actor, grantee, resource_id, existing.role
+        ):
             raise ForbiddenError(
                 f"{actor.id} may not revoke {grantee}'s access to {resource_id}"
             )
