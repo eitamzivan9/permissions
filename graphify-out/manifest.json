@@ -310,8 +310,8 @@
     "semantic_hash": "814cf34aa7dd21b8e4ae71bfa06ddcc7"
   },
   "frontend/src/pages/Permissions.tsx": {
-    "mtime": 1786563263.6955495,
-    "ast_hash": "06e7890c4d93731f24debad9a05669a3",
+    "mtime": 1786565482.1829686,
+    "ast_hash": "7a93871e5b4cf33d2eda61c3bd9e95f4",
     "semantic_hash": ""
   },
   "frontend/tsconfig.app.json": {
@@ -570,8 +570,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/ResourceNode.tsx": {
-    "mtime": 1786563224.5956488,
-    "ast_hash": "56f5c364ef33dc1571c5299856b80818",
+    "mtime": 1786566161.3447452,
+    "ast_hash": "a200e3ef7d85298f791fc3231314c95e",
     "semantic_hash": ""
   },
   "frontend/src/components/RoleBadge.tsx": {

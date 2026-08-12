@@ -101,5 +101,8 @@
   "99": ".delete_grants_for_resource_ids",
   "100": ".descendant_ids",
   "101": ".delete",
-  "102": ".delete_restrictions_for_resource_ids"
+  "102": ".delete_restrictions_for_resource_ids",
+  "103": "Resource",
+  "104": "ResourceType",
+  "105": "Restriction"
 }
