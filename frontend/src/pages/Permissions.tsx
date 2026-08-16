@@ -189,8 +189,15 @@ export default function Permissions() {
 
         {total > 0 && (
           <div className="mt-6 flex items-center justify-between">
+            {/* Not "X of {total}" — `total` is the raw, unfiltered row count
+                from the repo (see loadCatalog's comment above and
+                CatalogService.get_catalog): it includes other users'
+                personal workspaces that are permanently hidden from this
+                caller and will never appear on any page, so it doesn't
+                describe anything the user could actually reach by loading
+                more. items.length is the only number that's ever true. */}
             <span className="text-sm text-slate-500">
-              Showing {items.length} of {total} results
+              Showing {items.length} {items.length === 1 ? "result" : "results"}
             </span>
             {loadedPages < totalPages && (
               <button

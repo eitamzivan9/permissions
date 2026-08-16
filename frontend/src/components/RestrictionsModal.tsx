@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import type { GranteeType, MockUser, Restriction, Role, Team } from "../api/client";
+import type { Grant, GranteeType, MockUser, Restriction, Role, Team } from "../api/client";
 import {
   deleteRestriction,
+  getGrantsForResource,
   getManageableUsers,
   getRestrictionsForResource,
+  listMockUsers,
   listTeams,
   setRestriction,
 } from "../api/client";
@@ -26,8 +28,17 @@ export default function RestrictionsModal({
   onChanged,
 }: RestrictionsModalProps) {
   const [users, setUsers] = useState<MockUser[]>([]);
+  // Full user directory, independent of `users` (which is scoped to whoever
+  // the actor may manage/grant to). Grantee names must resolve regardless of
+  // that scope — e.g. the actor's own auto-whitelisted entry, or another
+  // admin's, is very often NOT a subordinate of the viewing actor.
+  const [allUsers, setAllUsers] = useState<MockUser[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [restrictions, setRestrictions] = useState<Restriction[]>([]);
+  // Ordinary (non-restriction) grants — used only to preview who already
+  // holds Admin here before any restriction exists (see the "Admin today"
+  // section below); RestrictionsService itself never reads these.
+  const [grants, setGrants] = useState<Grant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -44,13 +55,17 @@ export default function RestrictionsModal({
     setLoadError(null);
     Promise.all([
       getManageableUsers(resourceId),
+      listMockUsers(),
       listTeams(),
       getRestrictionsForResource(resourceId),
+      getGrantsForResource(resourceId),
     ])
-      .then(([fetchedUsers, fetchedTeams, fetchedRestrictions]) => {
+      .then(([fetchedUsers, fetchedAllUsers, fetchedTeams, fetchedRestrictions, fetchedGrants]) => {
         setUsers(fetchedUsers);
+        setAllUsers(fetchedAllUsers);
         setTeams(fetchedTeams);
         setRestrictions(fetchedRestrictions);
+        setGrants(fetchedGrants);
         setSelectedGranteeId((current) => current || (fetchedUsers[0]?.id ?? ""));
       })
       .catch((error: unknown) => {
@@ -149,14 +164,20 @@ export default function RestrictionsModal({
     setIsSubmitting(false);
   }
 
-  function granteeLabel(restriction: Restriction): string {
-    if (restriction.grantee_type === "user") {
-      const user = users.find((candidate) => candidate.id === restriction.user_id);
-      return user ? `${user.name} (${user.email})` : (restriction.user_id ?? "unknown user");
+  function granteeLabel(entry: Restriction | Grant): string {
+    if (entry.grantee_type === "user") {
+      const user = allUsers.find((candidate) => candidate.id === entry.user_id);
+      return user ? `${user.name} (${user.email})` : (entry.user_id ?? "unknown user");
     }
-    const team = teams.find((candidate) => candidate.id === restriction.team_id);
-    return team ? `Team: ${team.name}` : `Team: ${restriction.team_id ?? "unknown"}`;
+    const team = teams.find((candidate) => candidate.id === entry.team_id);
+    return team ? `Team: ${team.name}` : `Team: ${entry.team_id ?? "unknown"}`;
   }
+
+  // Admins here today via an ordinary grant — shown only until the first
+  // restriction is set, since RestrictionService.set_restriction() then
+  // auto-whitelists whoever sets it (not necessarily every admin listed
+  // here) and this list would start drifting from the real whitelist.
+  const currentAdminGrants = grants.filter((grant) => grant.role === "admin");
 
   return (
     <div
@@ -235,9 +256,33 @@ export default function RestrictionsModal({
               </div>
             )}
             {restrictions.length === 0 && (
-              <p className="text-sm text-slate-500">
-                No whitelist here yet — access is governed by ordinary grants only.
-              </p>
+              <div>
+                <p className="text-sm text-slate-500">
+                  No whitelist here yet — access is governed by ordinary grants only.
+                </p>
+                {currentAdminGrants.length > 0 && (
+                  <div className="mt-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Admin here today
+                    </h4>
+                    <ul className="mt-1.5 space-y-1.5">
+                      {currentAdminGrants.map((grant) => (
+                        <li
+                          key={`${grant.grantee_type}:${grant.user_id ?? grant.team_id}`}
+                          className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm"
+                        >
+                          <span className="truncate text-slate-700">{granteeLabel(grant)}</span>
+                          <span className="capitalize text-slate-500">admin</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Not on a whitelist yet — will stay whitelisted automatically once the first
+                      restriction is added here.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="border-t border-slate-200 pt-4">
