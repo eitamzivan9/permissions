@@ -10,9 +10,11 @@ build before this is production-ready there.
 
 Confirmed so far (recorded here so this doesn't drift from what was actually decided):
 an **internal package mirror** exists for both Python and Node — you don't need to
-vendor wheels/tarballs by hand. The closed-network Postgres is **version 15**. The
-frontend keeps running as the **Vite dev server** (`npm run dev`), not a built static
-bundle, for now.
+vendor wheels/tarballs by hand. The closed-network Postgres is **version 17.7**
+(`x86_64-pc-linux-gnu`, 64-bit) — corrects an earlier "version 15" assumption recorded
+here; also has **PostGIS 3.5.2** installed, unused by this schema (see `DATABASE.md`'s
+"Requirements" section). The frontend keeps running as the **Vite dev server**
+(`npm run dev`), not a built static bundle, for now.
 
 This is a planning/reference document, not a work log — update it if any of these
 decisions change, and treat every "not built yet" item below the way `CLAUDE.md`
@@ -31,10 +33,11 @@ Full schema reference: **`DATABASE.md`**. Summary of what changes:
   ```
   PERMISSIONS_DATABASE_URL=postgresql+asyncpg://permissions_app:<password>@<closed-network-host>:5432/permissions
   ```
-- Postgres **15** target — confirmed compatible: nothing in this schema needs newer
+- Postgres **17.7** target — confirmed compatible: nothing in this schema needs newer
   than what's shipped since well before 13. The one non-default requirement is the
   `ltree` extension (standard `postgresql-contrib`, trusted since PG13 — no superuser
-  needed to `CREATE EXTENSION`, just `CREATE` privilege on the database). See
+  needed to `CREATE EXTENSION`, just `CREATE` privilege on the database). The instance
+  also has PostGIS 3.5.2 available, unused by this schema — see `DATABASE.md`. See
   `DATABASE.md` for exact setup commands.
 - Run `alembic upgrade head` then `python scripts/seed.py` against the new instance —
   same as today, just pointed at a different host. Both are idempotent.
@@ -82,7 +85,7 @@ vendoring files:
   Vite's own docs for whatever version `package.json` pins) to confirm the closed
   network's Node runtime satisfies Vite 8's minimum Node version — don't assume;
   verify against what's actually mirrored.
-- **PostgreSQL 15 server itself** — provisioned by whoever manages the closed-network
+- **PostgreSQL 17.7 server itself** — provisioned by whoever manages the closed-network
   infra, not something `pip`/`npm` install; see `DATABASE.md`.
 
 ## 3. Auth — the biggest real gap, not just a config swap
@@ -217,7 +220,7 @@ infra/process decision, not something the codebase can default.
 
 ## 7. Verification checklist for the move
 
-1. **Storage cutover**: `alembic upgrade head` against the new PG15 instance →
+1. **Storage cutover**: `alembic upgrade head` against the new PG17.7 instance →
    confirm `ltree` extension + all 7 tables (`DATABASE.md`) → `python scripts/seed.py`
    → confirm row counts (41 resources / 2 teams / 5 memberships / 1 root grant line
    per top-level Workspace) → boot `uvicorn` from `backend/` → mock-login still works

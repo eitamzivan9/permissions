@@ -12,15 +12,24 @@ an id the identity source recognizes; nothing in Postgres enforces that.
 
 ## Requirements
 
-- **PostgreSQL 15** (confirmed as the closed-network target). Local dev has been run
-  against PostgreSQL 18, and nothing in this schema uses anything newer than what's
-  been in Postgres since well before 13, so 15 is fine — the one non-default piece is
+- **PostgreSQL 17.7** (confirmed as the closed-network target — `x86_64-pc-linux-gnu`,
+  64-bit; corrects the earlier "15" assumption recorded in `CLOSED_NETWORK_MIGRATION.md`,
+  which has been updated to match). Local dev has been run against PostgreSQL 18, and
+  nothing in this schema uses anything newer than what's been in Postgres since well
+  before 13, so 17.7 is fine — the one non-default piece this schema actually needs is
   the **`ltree`** extension (ships in the standard `postgresql-contrib` package on
   every mainstream distribution/installer; nothing to compile).
 - `ltree` has been a **trusted extension** since Postgres 13, meaning a non-superuser
   role with `CREATE` privilege on the target schema can install it itself — you do
   **not** need superuser/DBA involvement for `CREATE EXTENSION ltree` specifically,
   only for creating the database/role in the first place.
+- The closed-network instance also has **PostGIS 3.5.2** installed
+  (`688d427`). Nothing in this schema uses it — `resources.path` is `ltree`, not a
+  PostGIS geometry type, and this server owns permissions only, never geographic
+  feature data (see the top of this file). Noted here only so its presence doesn't get
+  mistaken for a missing requirement or, conversely, silently built against — if a
+  future feature actually wants PostGIS, that's a new decision to raise, not something
+  to assume from it merely being installed.
 
 ## Starting the database (one-time setup)
 
