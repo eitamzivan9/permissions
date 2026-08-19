@@ -10,7 +10,11 @@ user can reach.
 
 See `PLAN.md` at the project root for the full implementation plan (architecture, data
 model, file guide, API endpoint list, build sequence). This file is the durable,
-always-loaded summary of the rules that must not silently drift.
+always-loaded summary of the rules that must not silently drift. See `DATABASE.md` for
+the full Postgres schema reference and `CLOSED_NETWORK_MIGRATION.md` for what changes
+when this moves from the current open network to the organization's closed network
+(different Postgres instance, real ADFS, offline/mirrored package sourcing) — read
+that before touching anything auth- or database-connection-related for that move.
 
 ## Core philosophy: SOLID, and no duplicated code
 

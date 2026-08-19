@@ -12,7 +12,12 @@ resource feature data, never a users table. Two responsibilities:
 
 See [`PLAN.md`](PLAN.md) for the full architecture, data model, and API reference, and
 [`CLAUDE.md`](CLAUDE.md) for the durable design rules (SOLID, hexagonal boundaries,
-permission model, delegation rule) that must not silently drift.
+permission model, delegation rule) that must not silently drift. See
+[`DATABASE.md`](DATABASE.md) for the full Postgres schema reference (tables, columns,
+keys, how to start the DB), and [`CLOSED_NETWORK_MIGRATION.md`](CLOSED_NETWORK_MIGRATION.md)
+for what changes when this moves from the open network it's being built on to the
+organization's closed network (different Postgres, real ADFS, offline package
+sourcing).
 
 ## Stack
 
@@ -29,8 +34,12 @@ permission model, delegation rule) that must not silently drift.
 - Python 3.11+
 - Node.js (for the Vite frontend)
 - The `adfs-auth` library checked out at `C:\Users\Eitam\adfs-auth` (installed as a
-  path dependency — see `backend/pyproject.toml`)
-- PostgreSQL 18 — required for everyday dev; this project always runs in DB mode, not
+  path dependency — see `backend/pyproject.toml`; this is a local-path dependency that
+  will need to be published to a real package index before this project can run
+  anywhere other than this machine — see `CLOSED_NETWORK_MIGRATION.md`)
+- PostgreSQL — local dev here runs PostgreSQL 18, but the schema targets nothing newer
+  than PostgreSQL 15 (the closed-network deployment target — see `DATABASE.md`), so
+  either works; required for everyday dev, this project always runs in DB mode, not
   in-memory
 
 ## Quick start (always DB/Postgres mode)
@@ -165,7 +174,10 @@ the full file guide.
 
 ## Known limitations (deliberate, tracked in `PLAN.md`/`CLAUDE.md`)
 
-- Real ADFS validation is not wired in yet — auth is mocked.
+- Real ADFS validation is not wired in yet — auth is mocked. This is a bigger swap
+  than it looks: the mock login flow (pick a user, get a token immediately) and real
+  ADFS's redirect-based OIDC flow have different shapes, not just different adapter
+  classes — see `CLOSED_NETWORK_MIGRATION.md` section 3 before starting this.
 - Resource tree is static mock data (`infrastructure/seed_data.py`), not synced from a
   real source-of-truth system.
 - Org hierarchy is a small JSON-derived fixture, not a real AD/ADFS source.

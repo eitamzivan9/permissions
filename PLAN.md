@@ -3,7 +3,10 @@
 See `CLAUDE.md` at the project root for the durable, always-loaded rules (SOLID/
 no-duplication requirement, architecture boundaries, permission model, delegation
 rule). This file is the detailed design and current-state file guide behind those
-rules — read it before starting or resuming implementation.
+rules — read it before starting or resuming implementation. See `DATABASE.md` for the
+full Postgres schema reference and `CLOSED_NETWORK_MIGRATION.md` for the concrete
+open-network → closed-network move (new Postgres instance, real ADFS wiring, offline
+package sourcing) referenced throughout the "Deployment context" section below.
 
 ## Context
 

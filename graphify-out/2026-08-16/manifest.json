@@ -310,8 +310,8 @@
     "semantic_hash": "814cf34aa7dd21b8e4ae71bfa06ddcc7"
   },
   "frontend/src/pages/Permissions.tsx": {
-    "mtime": 1786912803.095913,
-    "ast_hash": "b184b79e8470d4591afc0a136b3397b3",
+    "mtime": 1786565482.1829686,
+    "ast_hash": "7a93871e5b4cf33d2eda61c3bd9e95f4",
     "semantic_hash": ""
   },
   "frontend/tsconfig.app.json": {
@@ -335,13 +335,13 @@
     "semantic_hash": "6de188e7a5903b93f42ae6c5c81825e7"
   },
   "CLAUDE.md": {
-    "mtime": 1787120409.4335668,
-    "ast_hash": "055ab1ba8950c8c87c45b018247b8a97",
+    "mtime": 1786563365.469823,
+    "ast_hash": "36c524cb71355e43d10215f2eff089b8",
     "semantic_hash": ""
   },
   "PLAN.md": {
-    "mtime": 1787120417.9832757,
-    "ast_hash": "08486e560ff69f17cfa2f16a19141925",
+    "mtime": 1786563544.6534522,
+    "ast_hash": "cf9a68007a4f846960e00c07adad7852",
     "semantic_hash": ""
   },
   "frontend/README.md": {
@@ -580,8 +580,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1787120405.138699,
-    "ast_hash": "5ed554c940c5aa6a14a10fa7efcf60b9",
+    "mtime": 1786563378.9133377,
+    "ast_hash": "95e1a94c58325f8747649c5d0ce81266",
     "semantic_hash": ""
   },
   "instructions/git-repo-link.txt": {
@@ -675,8 +675,13 @@
     "semantic_hash": ""
   },
   "frontend/src/components/RestrictionsModal.tsx": {
-    "mtime": 1786912787.7141047,
-    "ast_hash": "4f39bef49d6283a07f3298d5c2938c54",
+    "mtime": 1786563159.171187,
+    "ast_hash": "2d100019850f52fa3f7e660033d504e7",
+    "semantic_hash": ""
+  },
+  "instructions/new-guide-he.txt": {
+    "mtime": 1785341892.1401536,
+    "ast_hash": "0f66dd9f8e456e53dce59c8f21c1cfe3",
     "semantic_hash": ""
   },
   "backend/tests/integration/test_delete_resource.py": {
@@ -697,16 +702,6 @@
   "frontend/src/components/MoveResourceModal.tsx": {
     "mtime": 1786563186.1641247,
     "ast_hash": "893a5ea36f514355d3cbea6f25ef1f2b",
-    "semantic_hash": ""
-  },
-  "CLOSED_NETWORK_MIGRATION.md": {
-    "mtime": 1787120390.7262914,
-    "ast_hash": "bf12d0b0b1cde2d1f8ae36c5e47cb51e",
-    "semantic_hash": ""
-  },
-  "DATABASE.md": {
-    "mtime": 1787120327.4699535,
-    "ast_hash": "ce7b3b95dcdac94b4f89ed03a8f77147",
     "semantic_hash": ""
   }
 }
