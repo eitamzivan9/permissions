@@ -1,3 +1,5 @@
+"""In-memory PermissionGrantRepository — Phase 1 storage, used when PERMISSIONS_DATABASE_URL is unset."""
+
 from __future__ import annotations
 
 from permissions_server.domain.entities import Grantee, PermissionGrant, Role

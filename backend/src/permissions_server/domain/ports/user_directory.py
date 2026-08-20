@@ -1,3 +1,5 @@
+"""Looks up user identities — mocked now, real AD/ADFS later."""
+
 from __future__ import annotations
 
 from typing import Protocol

@@ -1,3 +1,5 @@
+"""Append-only audit trail port — no update/delete method by design."""
+
 from __future__ import annotations
 
 from typing import Protocol

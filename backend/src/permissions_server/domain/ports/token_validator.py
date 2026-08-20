@@ -1,3 +1,5 @@
+"""Validates bearer tokens — mocked now, real ADFS OIDC validation later."""
+
 from __future__ import annotations
 
 from typing import Protocol

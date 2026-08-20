@@ -1,3 +1,5 @@
+"""Wire schemas for api/routers/access_router.py."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -15,3 +17,9 @@ class AccessSourceOut(BaseModel):
     origin_resource_id: str | None
     role: Role
     is_effective: bool
+
+
+class GranteeInfoOut(BaseModel):
+    grantee_type: Literal["user", "team"]
+    id: str
+    name: str

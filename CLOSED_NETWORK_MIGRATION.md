@@ -78,6 +78,16 @@ vendoring files:
   the library moves, breaks in any second checkout or CI). I haven't changed
   `pyproject.toml` for this yet since it depends on you actually publishing the
   package somewhere — flagging it here as the top action item.
+
+  **Interim workaround now in place for Docker/CI only (not a substitute for the above)**:
+  `backend/Dockerfile` and `.gitlab-ci.yml` both rewrite this dependency line at
+  build/CI time via `sed` — Docker copies `adfs-auth` in as a second build context
+  (`docker-compose.yml`'s `additional_contexts`) and points at that local copy; CI
+  points at `adfs-auth`'s own GitLab remote instead. Neither touches the committed
+  `pyproject.toml`. This proves the "swap the dependency source, nothing else changes"
+  shape works, but it's still not the real fix — the closed network won't have this
+  machine's filesystem OR reach gitlab.com, so publishing to the internal mirror is
+  still the action item once you're actually moving.
 - **Node** (`npm`): point at the mirror via `.npmrc` (`registry=<mirror-url>`, per-project
   or per-user). `frontend/package.json`'s dependencies (`react`, `react-dom`,
   `react-router-dom`, Vite, Tailwind, TypeScript, oxlint) should all be on a

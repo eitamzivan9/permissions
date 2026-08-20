@@ -135,6 +135,9 @@ class Team:
 
 @dataclass(frozen=True, slots=True)
 class PermissionGrant:
+    """One grantee's role at one resource. See Restriction below for the
+    same shape used with the opposite (whitelist-gate) meaning."""
+
     grantee: Grantee
     resource_id: str
     role: Role

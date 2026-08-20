@@ -60,7 +60,7 @@ export interface CatalogPage {
 }
 
 export interface GetCatalogParams {
-  q?: string;
+  search?: string;
   page?: number;
   page_size?: number;
 }
@@ -138,6 +138,13 @@ export interface CreateTeamWorkspaceParams {
 export interface MoveResourceParams {
   resourceId: string;
   newParentId: string;
+}
+
+// A grantee resolved to a display name — see GET /access/admins/{id}.
+export interface GranteeInfo {
+  grantee_type: GranteeType;
+  id: string;
+  name: string;
 }
 
 const ROLE_RANK: Record<Role, number> = { viewer: 1, editor: 2, manager: 3, admin: 4 };
@@ -273,7 +280,7 @@ export function getMe(): Promise<Me> {
 
 export function getCatalog(params: GetCatalogParams = {}): Promise<CatalogPage> {
   const qs = buildQueryString({
-    q: params.q,
+    search: params.search,
     page: params.page,
     page_size: params.page_size,
   });
@@ -326,6 +333,16 @@ export function deleteRestriction(params: DeleteRestrictionParams): Promise<void
     `/restrictions/${params.resourceId}/${params.granteeType}/${params.granteeId}`,
     { method: "DELETE" },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Access-transparency endpoints
+// ---------------------------------------------------------------------------
+
+// Every grantee that currently resolves to Admin at the nearest ancestor
+// gating this resource — who to ask when effective_role here is null.
+export function getResourceAdmins(resourceId: string): Promise<GranteeInfo[]> {
+  return request<GranteeInfo[]>(`/access/admins/${resourceId}`);
 }
 
 // ---------------------------------------------------------------------------

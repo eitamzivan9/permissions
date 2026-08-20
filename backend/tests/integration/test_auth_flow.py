@@ -23,3 +23,10 @@ async def test_protected_route_without_token_is_401(client):
 async def test_protected_route_with_garbage_token_is_401(client):
     resp = await client.get("/auth/me", headers=auth_headers("not-a-real-jwt"))
     assert resp.status_code == 401
+
+
+async def test_list_mock_users_returns_the_dev_login_picker_fixture(client):
+    resp = await client.get("/auth/mock-users")
+    assert resp.status_code == 200
+    users = resp.json()
+    assert any(u["id"] == "u001" and u["name"] == "Dana Whitfield" for u in users)

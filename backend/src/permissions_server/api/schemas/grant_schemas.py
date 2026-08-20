@@ -1,3 +1,5 @@
+"""Wire schemas for api/routers/grants_router.py."""
+
 from __future__ import annotations
 
 from typing import Literal

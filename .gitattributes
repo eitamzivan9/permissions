@@ -1,1 +1,5 @@
 graphify-out/graph.json merge=graphify
+
+# Shell scripts run inside Linux containers — CRLF (from core.autocrlf=true on
+# Windows checkouts) breaks the #!/bin/sh shebang, so force LF regardless of platform.
+*.sh text eol=lf

@@ -224,3 +224,91 @@ async def test_super_viewer_bypasses_restrictions(
     )
     await system_role_repo.grant_system_role(USER, SystemRole.SUPER_VIEWER, granted_by="root")
     assert await access_resolver.effective_role(MAP_ID, user_id=USER) is Role.VIEWER
+
+
+# --- nearest_admins: "who do I ask" for a caller with no access ---
+
+
+async def test_nearest_admins_empty_with_no_grants_anywhere(access_resolver):
+    assert await access_resolver.nearest_admins(MAP_ID) == []
+
+
+async def test_nearest_admins_returns_admin_grantees_at_nearest_node(access_resolver, grant_repo):
+    other_admin = Grantee(GranteeType.USER, user_id="u099")
+    await grant_repo.upsert_grant(USER_GRANTEE, MAP_ID, Role.ADMIN, granted_by="mgr")
+    await grant_repo.upsert_grant(other_admin, MAP_ID, Role.ADMIN, granted_by="mgr")
+    await grant_repo.upsert_grant(
+        Grantee(GranteeType.USER, user_id="u050"), MAP_ID, Role.EDITOR, granted_by="mgr"
+    )
+    admins = await access_resolver.nearest_admins(MAP_ID)
+    assert set(admins) == {USER_GRANTEE, other_admin}
+
+
+async def test_nearest_admins_excludes_non_admin_grantees_at_the_node(access_resolver, grant_repo):
+    """A node can have grants without anyone there being Admin — the
+    resource genuinely has no admin via inheritance in that case (a further
+    ancestor's Admin grant is overridden, same as effective_role would
+    resolve for that ancestor's grantee)."""
+    await grant_repo.upsert_grant(USER_GRANTEE, MAP_ID, Role.EDITOR, granted_by="mgr")
+    assert await access_resolver.nearest_admins(MAP_ID) == []
+
+
+async def test_nearest_admins_climbs_to_nearest_ancestor_with_any_grant(access_resolver, grant_repo):
+    await grant_repo.upsert_grant(USER_GRANTEE, WORKSPACE_ID, Role.ADMIN, granted_by="mgr")
+    assert await access_resolver.nearest_admins(LAYER_ID) == [USER_GRANTEE]
+
+
+async def test_nearest_admins_stops_at_inherits_from_parent_false(
+    access_resolver, grant_repo, resource_repo
+):
+    await grant_repo.upsert_grant(USER_GRANTEE, WORKSPACE_ID, Role.ADMIN, granted_by="mgr")
+    await resource_repo.set_inherits_from_parent(FOLDER_ID, False)
+    assert await access_resolver.nearest_admins(MAP_ID) == []
+
+
+async def test_nearest_restriction_computes_its_own_path_when_not_given(
+    access_resolver, restriction_repo
+):
+    """Direct callers (unlike effective_role/nearest_admins, which always
+    pass a precomputed path) rely on nearest_restriction fetching its own
+    path_to_root."""
+    await restriction_repo.upsert_restriction(USER_GRANTEE, MAP_ID, Role.VIEWER, granted_by="admin")
+    result = await access_resolver.nearest_restriction(MAP_ID)
+    assert result is not None
+    origin_id, entries = result
+    assert origin_id == MAP_ID
+    assert entries[0].grantee == USER_GRANTEE
+
+
+async def test_nearest_restriction_none_for_nonexistent_resource(access_resolver):
+    assert await access_resolver.nearest_restriction("does-not-exist") is None
+
+
+async def test_path_to_root_terminates_on_a_corrupted_cyclic_parent_chain(resource_repo):
+    """Not reachable through the normal API (move() rejects moving a
+    resource into its own subtree) — this guards the repository itself
+    against hanging forever if parent_id data is ever corrupted directly,
+    same defensive style as MockOrgHierarchy's visited-set guard."""
+    a = await resource_repo.create(type=ResourceType.WORKSPACE, name="A", parent_id=None)
+    b = await resource_repo.create(type=ResourceType.FOLDER, name="B", parent_id=a.id)
+    # Force a cycle: b's own child ends up pointing back at a's OWN parent_id,
+    # by making a directly point at b (bypassing move()'s cycle check).
+    resource_repo._by_id[a.id] = type(a)(
+        id=a.id, type=a.type, name=a.name, parent_id=b.id, owner_id=a.owner_id
+    )
+    path = await resource_repo.path_to_root(b.id)
+    assert len(path) <= 2  # terminates instead of looping forever
+
+
+async def test_nearest_admins_uses_restriction_whitelist_when_restricted(
+    access_resolver, restriction_repo
+):
+    """When a restriction gates the resource, 'who do I ask' must reflect
+    who the restriction actually lets through as Admin — not grants, which
+    the restriction fully overrides."""
+    admin_entry = Grantee(GranteeType.USER, user_id="u070")
+    await restriction_repo.upsert_restriction(admin_entry, MAP_ID, Role.ADMIN, granted_by="admin")
+    await restriction_repo.upsert_restriction(
+        OTHER_USER_GRANTEE, MAP_ID, Role.VIEWER, granted_by="admin"
+    )
+    assert await access_resolver.nearest_admins(MAP_ID) == [admin_entry]

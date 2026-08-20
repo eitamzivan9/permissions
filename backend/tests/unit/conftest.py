@@ -94,8 +94,8 @@ def catalog_service(resource_repo, access_resolver):
 
 
 @pytest.fixture
-def access_transparency_service(access_resolver):
-    return AccessTransparencyService(access_resolver)
+def access_transparency_service(access_resolver, user_directory, team_repo):
+    return AccessTransparencyService(access_resolver, user_directory, team_repo)
 
 
 @pytest.fixture

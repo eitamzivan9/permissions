@@ -1,3 +1,5 @@
+"""PostgreSQL-backed ResourceRepository, using the ltree path column for indexed ancestor lookups."""
+
 from __future__ import annotations
 
 from uuid import uuid4

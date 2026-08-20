@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:17.7
+    environment:
+      POSTGRES_USER: permissions_app
+      POSTGRES_PASSWORD: permissions_dev_only
+      POSTGRES_DB: permissions
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U permissions_app -d permissions"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No host port mapping: only `backend` needs to reach this, over the compose
+    # network. Add "5432:5432" yourself if you want a GUI client on the host — just
+    # confirm nothing else (e.g. a native Postgres install) is already using 5432
+    # there first.
+
+  backend:
+    build:
+      context: ./backend
+      additional_contexts:
+        # ../adfs-auth is a sibling folder to this repo on this machine — see
+        # backend/Dockerfile's top comment for why, and what changes once adfs-auth
+        # is published to the closed network's package mirror.
+        adfs-auth: ../adfs-auth
+    env_file:
+      - backend/.env
+    environment:
+      # Overrides backend/.env's host-Postgres URL to reach the `db` service by name
+      # on the compose network; backend/.env itself stays untouched so the non-Docker
+      # two-terminal workflow (CLAUDE.md's "Running the app") keeps working unchanged.
+      # Point this at the closed-network Postgres host instead once that's reachable —
+      # see CLOSED_NETWORK_MIGRATION.md — and you likely won't run the `db` service at
+      # all at that point.
+      PERMISSIONS_DATABASE_URL: postgresql+asyncpg://permissions_app:permissions_dev_only@db:5432/permissions
+    volumes:
+      # Bind-mount source only (not the whole build context) so uvicorn --reload picks
+      # up edits without clobbering the image's installed dependencies.
+      - ./backend/src:/app/src
+      - ./backend/alembic:/app/alembic
+      - ./backend/scripts:/app/scripts
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_BACKEND_URL: http://backend:8000
+    volumes:
+      # Same reasoning as backend: mount source, not node_modules — node_modules must
+      # stay the Linux-native install done inside the image, not whatever's on the
+      # Windows host.
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:

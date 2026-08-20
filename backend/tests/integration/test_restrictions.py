@@ -31,7 +31,7 @@ async def _restrict_user(client, actor_token, resource_id, user_id, role):
 
 
 async def _effective_role(client, token, query):
-    catalog = await client.get("/catalog", headers=auth_headers(token), params={"q": query})
+    catalog = await client.get("/catalog", headers=auth_headers(token), params={"search": query})
     return catalog.json()["items"][0]["effective_role"]
 
 

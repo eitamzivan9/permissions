@@ -1,3 +1,5 @@
+"""Builds the async engine/sessionmaker pair for a given database_url."""
+
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine

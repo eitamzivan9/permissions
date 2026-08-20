@@ -133,8 +133,10 @@ def get_permission_grant_service(
 
 def get_access_transparency_service(
     access_resolver: Annotated[AccessResolver, Depends(get_access_resolver)],
+    user_directory: Annotated[UserDirectory, Depends(get_user_directory)],
+    team_repository: Annotated[TeamRepository, Depends(get_team_repository)],
 ) -> AccessTransparencyService:
-    return AccessTransparencyService(access_resolver)
+    return AccessTransparencyService(access_resolver, user_directory, team_repository)
 
 
 def get_auth_service(

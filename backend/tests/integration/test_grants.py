@@ -83,7 +83,7 @@ async def test_root_can_delegate_then_vp_can_delegate_to_own_subordinate(client)
 
     sub_token = await login_as(client, VP_SUBORDINATE)
     catalog = await client.get(
-        "/catalog", headers=auth_headers(sub_token), params={"q": "Zoning Districts"}
+        "/catalog", headers=auth_headers(sub_token), params={"search": "Zoning Districts"}
     )
     assert catalog.json()["items"][0]["effective_role"] == "viewer"
 
@@ -133,7 +133,7 @@ async def test_layer_override_then_delete_reverts_to_map_default(client):
 
     sub_token = await login_as(client, VP_SUBORDINATE)
     catalog = await client.get(
-        "/catalog", headers=auth_headers(sub_token), params={"q": "City Roads"}
+        "/catalog", headers=auth_headers(sub_token), params={"search": "City Roads"}
     )
     layers = {l["id"]: l["effective_role"] for l in catalog.json()["items"][0]["children"]}
     assert layers[BIKE_LAYER_ID] == "editor"
@@ -145,7 +145,7 @@ async def test_layer_override_then_delete_reverts_to_map_default(client):
     assert delete_resp.status_code == 204
 
     catalog_after = await client.get(
-        "/catalog", headers=auth_headers(sub_token), params={"q": "City Roads"}
+        "/catalog", headers=auth_headers(sub_token), params={"search": "City Roads"}
     )
     layers_after = {
         l["id"]: l["effective_role"] for l in catalog_after.json()["items"][0]["children"]
@@ -195,6 +195,6 @@ async def test_user_can_revoke_their_own_grant_without_any_manage_authority(clie
     assert resp.status_code == 204
 
     catalog = await client.get(
-        "/catalog", headers=auth_headers(sub_token), params={"q": "Zoning Districts"}
+        "/catalog", headers=auth_headers(sub_token), params={"search": "Zoning Districts"}
     )
     assert catalog.json()["items"][0]["effective_role"] is None

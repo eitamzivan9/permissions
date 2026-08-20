@@ -111,6 +111,9 @@ async def test_delete_non_empty_folder_is_conflict(client):
     root_token = await login_as(client, ROOT)
     resp = await _delete(client, root_token, FOLDER_ID)
     assert resp.status_code == 409
+    # The resource id must never leak into the error message — it's not
+    # actionable for the caller and the frontend shouldn't have to scrub it.
+    assert FOLDER_ID not in resp.json()["detail"]
 
     catalog = await client.get("/catalog", headers=auth_headers(root_token))
     assert _find(catalog.json()["items"], FOLDER_ID) is not None

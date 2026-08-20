@@ -1,3 +1,5 @@
+"""Issues bearer tokens — mocked now, real ADFS OIDC acquisition later."""
+
 from __future__ import annotations
 
 from typing import Protocol

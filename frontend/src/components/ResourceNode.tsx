@@ -1,33 +1,21 @@
+import type { DragEvent } from "react";
 import { useState } from "react";
 import type { CatalogItem, ResourceType } from "../api/client";
-import { deleteGrant, deleteResource, roleAtLeast } from "../api/client";
-import { useAuth } from "../auth/AuthContext";
+import { moveResource } from "../api/client";
+import { TYPE_LABELS } from "../lib/resourceTypeMeta";
+import ResourceInfoPanel from "./ResourceInfoPanel";
 import RoleBadge from "./RoleBadge";
-import ManageAccessModal from "./ManageAccessModal";
-import CreateResourceModal from "./CreateResourceModal";
-import MoveResourceModal from "./MoveResourceModal";
-import RestrictionsModal from "./RestrictionsModal";
-
-// Workspace/Folder/Group are this server's own organizational structure —
-// deleting one is real (only once empty). Map/Layer represent data owned by
-// another system: the frontend never deletes the Resource itself, only the
-// current user's own access to it (see "Remove access" below).
-const ORGANIZATIONAL_TYPES = new Set<ResourceType>(["workspace", "folder", "group"]);
-
-// One recursive component for all 5 resource levels — mirrors the backend's
-// single Resource/CatalogItem model instead of a MapCard/LayerChip pair.
-const TYPE_LABELS: Record<ResourceType, string> = {
-  workspace: "Workspace",
-  folder: "Folder",
-  map: "Map",
-  group: "Group",
-  layer: "Layer",
-};
 
 // Workspace/Folder/Map subtrees can be large, so those levels start collapsed
 // — the caller clicks in to drill down. Group (just a handful of Layers) still
 // starts open, since there's nothing large to hide there.
 const DEFAULT_COLLAPSED_TYPES = new Set<ResourceType>(["workspace", "folder", "map"]);
+
+// The dataTransfer payload a drag-start writes and a drop reads back — see
+// handleDragStart/handleDrop below.
+interface DragPayload {
+  id: string;
+}
 
 interface ResourceNodeProps {
   item: CatalogItem;
@@ -35,79 +23,71 @@ interface ResourceNodeProps {
   onChanged: () => void;
 }
 
+// One recursive component for all 5 resource levels — mirrors the backend's
+// single Resource/CatalogItem model instead of a MapCard/LayerChip pair.
 export default function ResourceNode({ item, depth, onChanged }: ResourceNodeProps) {
-  const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState(() => !DEFAULT_COLLAPSED_TYPES.has(item.type));
-  const [isManaging, setIsManaging] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isRestricting, setIsRestricting] = useState(false);
-  const [isMoving, setIsMoving] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const hasChildren = item.children.length > 0;
-  const isOrganizational = ORGANIZATIONAL_TYPES.has(item.type);
-  // A Layer is always a leaf, so it's never a valid parent for a new child.
-  const canCreateHere = item.type !== "layer" && roleAtLeast(item.effective_role, "editor");
-  // Mirrors the backend's restrictions_router check exactly: Admin only
-  // (SUPER_EDITOR already resolves to effective_role "admin", so it's covered).
-  const canRestrictHere = item.effective_role === "admin";
-  // Same Admin-only gate as the backend's ResourceService.move() source check.
-  const canMoveHere = item.effective_role === "admin";
-  // Workspace/Folder/Group only ever hard-delete when empty — same Admin-only
-  // gate as the backend's ResourceService.delete() check.
-  const canDeleteHere = isOrganizational && item.effective_role === "admin";
-  // Map/Layer: this server doesn't own that data, so there's no "delete" from
-  // here — only revoking the CURRENT user's own access, at any role.
-  const canRemoveAccessHere = !isOrganizational && item.effective_role !== null;
 
-  async function handleDelete() {
-    setIsDeleting(true);
-    setDeleteError(null);
-    try {
-      await deleteResource(item.id);
-      onChanged();
-      // A successful delete normally removes this node from the tree
-      // entirely (unmounting it), but ResourceNode is keyed by item.id, so
-      // if it's still around after the refetch (e.g. the parent hasn't
-      // re-rendered yet), local state must still be reset — otherwise the
-      // button gets stuck on "Deleting…" forever, same failure mode as
-      // "Remove access" below (which never unmounts, since the resource
-      // itself stays put).
-      setIsDeleting(false);
-      setIsConfirmingDelete(false);
-    } catch (error: unknown) {
-      setDeleteError(error instanceof Error ? error.message : "Failed to delete.");
-      setIsDeleting(false);
-      setIsConfirmingDelete(false);
-    }
+  // Move is drag-and-drop only (no picker modal) — a node may be dragged
+  // only when the caller is Admin there, same gate the old "Move" button
+  // used; the server re-checks on PATCH /resources/{id}/move regardless, so
+  // this is purely a UX hint. Every node (draggable or not) is a valid drop
+  // TARGET — legality (type pairing, cycle-safety) stays server-authoritative,
+  // surfaced here only as an inline error on a rejected drop.
+  const isDraggable = item.effective_role === "admin";
+
+  function handleDragStart(event: DragEvent<HTMLDivElement>) {
+    const payload: DragPayload = { id: item.id };
+    event.dataTransfer.setData("application/json", JSON.stringify(payload));
+    event.dataTransfer.effectAllowed = "move";
   }
 
-  async function handleRemoveAccess() {
-    if (!user) return;
-    setIsDeleting(true);
-    setDeleteError(null);
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setIsDropTarget(true);
+  }
+
+  function handleDragLeave() {
+    setIsDropTarget(false);
+  }
+
+  async function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDropTarget(false);
+    let payload: DragPayload;
     try {
-      await deleteGrant({ resourceId: item.id, granteeType: "user", granteeId: user.id });
+      payload = JSON.parse(event.dataTransfer.getData("application/json")) as DragPayload;
+    } catch {
+      return;
+    }
+    if (!payload.id || payload.id === item.id) return;
+
+    setMoveError(null);
+    try {
+      await moveResource({ resourceId: payload.id, newParentId: item.id });
       onChanged();
-      // Unlike delete, this node normally stays in the tree (the resource
-      // itself is untouched) — the confirm/loading state MUST be reset here
-      // or it's stuck on "Removing…" forever, since React keeps the same
-      // component instance alive across the refetch (same key).
-      setIsDeleting(false);
-      setIsConfirmingDelete(false);
     } catch (error: unknown) {
-      setDeleteError(error instanceof Error ? error.message : "Failed to remove access.");
-      setIsDeleting(false);
-      setIsConfirmingDelete(false);
+      setMoveError(error instanceof Error ? error.message : "Failed to move the resource.");
     }
   }
 
   return (
     <div className={depth > 0 ? "border-l border-slate-200 pl-3" : undefined}>
       <div
+        draggable={isDraggable}
+        onDragStart={isDraggable ? handleDragStart : undefined}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className={`flex items-center justify-between gap-3 rounded-md px-3 py-2 ${
           depth === 0 ? "border border-slate-200 bg-white shadow-sm" : "bg-slate-50"
+        } ${isDraggable ? "cursor-grab active:cursor-grabbing" : ""} ${
+          isDropTarget ? "ring-2 ring-inset ring-slate-400" : ""
         }`}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -138,80 +118,20 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <RoleBadge role={item.effective_role} />
-          {canCreateHere && (
-            <button
-              type="button"
-              onClick={() => setIsCreating(true)}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-              aria-label={`Create resource inside ${item.name}`}
-            >
-              + Create
-            </button>
-          )}
-          {item.can_manage && (
-            <button
-              type="button"
-              onClick={() => setIsManaging(true)}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Manage access
-            </button>
-          )}
-          {canRestrictHere && (
-            <button
-              type="button"
-              onClick={() => setIsRestricting(true)}
-              className="rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
-            >
-              Restrictions
-            </button>
-          )}
-          {canMoveHere && (
-            <button
-              type="button"
-              onClick={() => setIsMoving(true)}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Move
-            </button>
-          )}
-          {(canDeleteHere || canRemoveAccessHere) && !isConfirmingDelete && (
-            <button
-              type="button"
-              onClick={() => setIsConfirmingDelete(true)}
-              className="rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
-            >
-              {canDeleteHere ? "Delete" : "Remove access"}
-            </button>
-          )}
-          {(canDeleteHere || canRemoveAccessHere) && isConfirmingDelete && (
-            <span className="flex shrink-0 items-center gap-1.5">
-              <span className="text-xs text-red-700">
-                {canDeleteHere ? "Delete this?" : "Remove your access to this?"}
-              </span>
-              <button
-                type="button"
-                onClick={canDeleteHere ? handleDelete : handleRemoveAccess}
-                disabled={isDeleting}
-                className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isDeleting ? "Removing…" : "Confirm"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsConfirmingDelete(false)}
-                disabled={isDeleting}
-                className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsInfoOpen(true)}
+            className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+            aria-label={`Actions for ${item.name}`}
+            title="Actions"
+          >
+            i
+          </button>
         </div>
       </div>
 
-      {deleteError && (
-        <p className="mt-1 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700">{deleteError}</p>
+      {moveError && (
+        <p className="mt-1 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700">{moveError}</p>
       )}
 
       {hasChildren && isExpanded && (
@@ -222,40 +142,8 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
         </div>
       )}
 
-      {isManaging && (
-        <ManageAccessModal
-          resourceId={item.id}
-          resourceName={item.name}
-          onClose={() => setIsManaging(false)}
-          onChanged={onChanged}
-        />
-      )}
-
-      {isCreating && (
-        <CreateResourceModal
-          parentId={item.id}
-          parentName={item.name}
-          onClose={() => setIsCreating(false)}
-          onCreated={onChanged}
-        />
-      )}
-
-      {isRestricting && (
-        <RestrictionsModal
-          resourceId={item.id}
-          resourceName={item.name}
-          onClose={() => setIsRestricting(false)}
-          onChanged={onChanged}
-        />
-      )}
-
-      {isMoving && (
-        <MoveResourceModal
-          resourceId={item.id}
-          resourceName={item.name}
-          onClose={() => setIsMoving(false)}
-          onChanged={onChanged}
-        />
+      {isInfoOpen && (
+        <ResourceInfoPanel item={item} onClose={() => setIsInfoOpen(false)} onChanged={onChanged} />
       )}
     </div>
   );

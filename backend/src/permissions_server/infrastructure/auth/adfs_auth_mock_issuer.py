@@ -1,3 +1,5 @@
+"""Wraps adfs-auth's testing.MockTokenAcquirer behind the TokenIssuer port."""
+
 from __future__ import annotations
 
 from adfs_auth.testing import MockTokenAcquirer

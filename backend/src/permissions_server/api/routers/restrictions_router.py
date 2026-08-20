@@ -1,3 +1,5 @@
+"""The restriction whitelist gate, layered on top of ordinary grants."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -33,7 +35,18 @@ def _to_out(restriction: Restriction) -> RestrictionOut:
     )
 
 
-@router.get("/{resource_id}", response_model=list[RestrictionOut])
+@router.get(
+    "/{resource_id}",
+    response_model=list[RestrictionOut],
+    summary="List the restriction whitelist directly on a resource",
+    description=(
+        "Every restriction entry (any grantee) directly on this resource. Admin-only "
+        "(or SUPER_EDITOR, since effective_role already resolves that to Admin) — "
+        "403 otherwise. The mere existence of any restriction row here gates the "
+        "resource: a grantee not listed resolves to no access at all, even with an "
+        "Admin grant."
+    ),
+)
 async def list_restrictions(
     resource_id: str,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
@@ -49,7 +62,17 @@ async def list_restrictions(
     return [_to_out(r) for r in restrictions]
 
 
-@router.put("/{resource_id}/{grantee_type}/{grantee_id}", response_model=RestrictionOut)
+@router.put(
+    "/{resource_id}/{grantee_type}/{grantee_id}",
+    response_model=RestrictionOut,
+    summary="Whitelist a user or team on a resource's restriction gate",
+    description=(
+        "Admin-only, same org-chart + personal-workspace-bypass rule as PUT /grants. "
+        "The FIRST restriction ever placed on a resource auto-whitelists the acting "
+        "admin as Admin too, so setting one can never lock the setting admin out of "
+        "their own first restriction."
+    ),
+)
 async def set_restriction(
     resource_id: str,
     grantee_type: GranteeTypePath,
@@ -66,7 +89,16 @@ async def set_restriction(
 
 
 @router.delete(
-    "/{resource_id}/{grantee_type}/{grantee_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/{resource_id}/{grantee_type}/{grantee_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove one restriction whitelist entry",
+    description=(
+        "Admin-only, same rule as PUT. Removing an Admin-role entry is rejected "
+        "(409) if it would leave the resource still gated (other restriction rows "
+        "remain) with zero Admin-role entries left — 'no orphaned object access'. "
+        "Removing the last restriction row overall is always allowed, even if it's "
+        "Admin-role: that's a full unrestrict, not an orphan."
+    ),
 )
 async def delete_restriction(
     resource_id: str,

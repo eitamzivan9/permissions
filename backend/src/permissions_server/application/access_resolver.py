@@ -5,6 +5,7 @@ AccessResolver so they can't drift apart."""
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from permissions_server.domain.entities import (
@@ -68,6 +69,21 @@ class AccessResolver:
             grants_by_resource=by_resource,
         )
 
+    @staticmethod
+    def _walk_up(path: list[Resource]) -> Iterator[Resource]:
+        """Nearest-ancestor-wins traversal shared by nearest_grants,
+        nearest_restriction, and nearest_admins: yields path (root-first)
+        nearest-node-first, stopping right after the first node whose own
+        `inherits_from_parent` is False — that node's own entry is still
+        yielded, but nothing further toward the root ever leaks past it, so
+        a single flag walls off a whole subtree without enumerating every
+        grantee. Extracted once here so all three "find the nearest node
+        with X" queries can't drift apart on this rule."""
+        for node in reversed(path):
+            yield node
+            if not node.inherits_from_parent:
+                break
+
     async def nearest_grants(
         self,
         resource_id: str,
@@ -80,22 +96,16 @@ class AccessResolver:
         with any explicit grant, or None if no ancestor has one. A closer
         override fully replaces a farther one — same 'sticky override'
         semantics as the old layer-vs-map default, generalized to N levels.
-        The climb also stops the moment it passes a node whose own
-        `inherits_from_parent` is False — that node's own grant (if any) is
-        still checked first, but nothing further up ever leaks past it, so a
-        single flag can wall off a whole subtree without enumerating every
-        grantee. Shared by effective_role and
-        AccessTransparencyService.explain_access so this climb exists exactly
-        once. Pass a precomputed `path` (from path_to_root) to avoid a second
-        query when the caller already has it."""
+        Shared by effective_role and AccessTransparencyService.explain_access
+        so this climb exists exactly once. Pass a precomputed `path` (from
+        path_to_root) to avoid a second query when the caller already has
+        it."""
         if path is None:
             path = await self._resource_repository.path_to_root(resource_id)  # root-first
-        for node in reversed(path):
+        for node in self._walk_up(path):
             grants_here = snapshot.grants_by_resource.get(node.id)
             if grants_here:
                 return node.id, grants_here
-            if not node.inherits_from_parent:
-                break
         return None
 
     async def nearest_restriction(
@@ -108,8 +118,7 @@ class AccessResolver:
         gated by the mere existence of ANY restriction entry there —
         regardless of who it names — so this fetches every restriction row
         across the whole ancestor path (not grantee-filtered) and walks
-        nearest-first, respecting `inherits_from_parent` the same way
-        nearest_grants does."""
+        nearest-first via the same `_walk_up` traversal nearest_grants uses."""
         if path is None:
             path = await self._resource_repository.path_to_root(resource_id)
         if not path:
@@ -120,13 +129,34 @@ class AccessResolver:
         by_resource: dict[str, list[Restriction]] = {}
         for restriction in rows:
             by_resource.setdefault(restriction.resource_id, []).append(restriction)
-        for node in reversed(path):
+        for node in self._walk_up(path):
             entries = by_resource.get(node.id)
             if entries:
                 return node.id, entries
-            if not node.inherits_from_parent:
-                break
         return None
+
+    async def nearest_admins(self, resource_id: str) -> list[Grantee]:
+        """Same restriction-then-grants precedence as effective_role(), but
+        collects every grantee that resolves to Admin at the nearest gating
+        node instead of one caller's own role — answers 'who do I ask' when
+        the caller's own effective_role is None. If a restriction gates this
+        resource, admins come from that restriction's Admin-role entries
+        (whoever actually resolves to Admin there); otherwise from the
+        nearest ancestor with any explicit grant at all — an ancestor
+        further up having an Admin grant doesn't count if a nearer node's
+        grants override it, same as effective_role would resolve for any
+        one of those grantees."""
+        path = await self._resource_repository.path_to_root(resource_id)
+        restriction = await self.nearest_restriction(resource_id, path=path)
+        if restriction is not None:
+            _, entries = restriction
+            return [entry.grantee for entry in entries if entry.role is Role.ADMIN]
+
+        for node in self._walk_up(path):
+            grants_here = await self._grant_repository.list_grants_for_resource(node.id)
+            if grants_here:
+                return [grant.grantee for grant in grants_here if grant.role is Role.ADMIN]
+        return []
 
     async def effective_role(
         self,

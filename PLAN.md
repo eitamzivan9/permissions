@@ -219,13 +219,14 @@ Premissions/
     └── src/
         ├── pages/{Login,Permissions}.tsx
         ├── components/
-        │   ├── ResourceNode.tsx           # recursive tree node — "+ Create" (Editor+), "Manage access" (can_manage), "Restrictions"/"Move" (Admin), "Delete" (Workspace/Folder/Group, Admin, empty-only) or "Remove access" (Map/Layer, any role)
+        │   ├── ResourceNode.tsx           # recursive tree node — row is expand/name/role-badge/drag-handle + one "i" info button; drag-and-drop is the only way to move (Admin-draggable, any node a drop target)
+        │   ├── ResourceInfoPanel.tsx      # opened by the "i" button — hosts Create/Manage access/Restrictions/Delete-or-Remove-access + an "Owners" lookup when effective_role is null
         │   ├── ManageAccessModal.tsx       # ordinary grants
         │   ├── RestrictionsModal.tsx       # whitelist — same shell/pattern as ManageAccessModal
-        │   ├── CreateResourceModal.tsx     # child creation under a parent the caller can edit — Folder/Group only, Map/Layer are server-to-server
-        │   ├── MoveResourceModal.tsx       # search-and-pick destination, calls the existing move endpoint
+        │   ├── CreateResourceModal.tsx     # child creation under a parent the caller can edit — Folder only (no type picker); Group/Map/Layer are backend-only/server-to-server
         │   ├── CreateTeamWorkspaceModal.tsx # SUPER_EDITOR-only, picks the initial admin
         │   └── RoleBadge.tsx
+        ├── lib/resourceTypeMeta.ts         # TYPE_LABELS/ORGANIZATIONAL_TYPES shared between ResourceNode and ResourceInfoPanel
         ├── api/client.ts                   # sole typed backend-communication module
         └── auth/AuthContext.tsx            # resolves identity via /auth/me, fire-and-forget get-or-create my-workspace
 ```
@@ -303,7 +304,7 @@ replacing `seed_data.py` as the source of truth.
 - **`ResourceService`** — orchestrates all resource creation, move, and delete, each
   validate → authorize → write → auto-grant: `create_child` (Editor+ at parent, new
   resource's creator auto-granted Admin — accepts any `ResourceType`, though
-  `CreateResourceModal.tsx` only offers Folder/Group), `get_or_create_my_workspace` (any
+  `CreateResourceModal.tsx` only offers Folder), `get_or_create_my_workspace` (any
   authenticated user, idempotent, keyed by `owner_id`), `create_team_workspace`
   (`SUPER_EDITOR`-only, grants the caller-specified `admin_user_id`, not necessarily
   the caller), `move` (Admin at source + Editor+ at destination, rejects moving into
@@ -313,7 +314,12 @@ replacing `seed_data.py` as the source of truth.
   `AccessSource` (system role, restriction entry, or grant) at the nearest ancestor
   with any grant/restriction, with `is_effective` marking the winner; `my_access`
   exposes this ungated for the caller's own access; `check_access` gates inspecting
-  someone else's access on Manager+ (or a system role).
+  someone else's access on Manager+ (or a system role); `list_admins()` (ungated) answers
+  "who do I ask" — every grantee resolving to Admin at the nearest gating ancestor,
+  resolved to display names, backing `GET /access/admins/{resource_id}` and the
+  frontend's "Owners" lookup when `effective_role` is `None`. Built on `AccessResolver`'s
+  new `nearest_admins()`, which reuses `nearest_grants`/`nearest_restriction`'s shared
+  `_walk_up()` traversal rather than re-implementing the climb.
 - **`CatalogService`** — builds the paginated, searchable **full** resource tree:
   `get_catalog()` (search or top-level Workspaces, each node annotated with
   `effective_role`, `can_manage`, and `can_fetch` — the last bubbling up from
@@ -392,7 +398,7 @@ needed zero changes (DIP in action).
 | GET | `/auth/mock-users` | none | list pickable mock identities for the login screen |
 | POST | `/auth/login` | none | mock ADFS: issue an HS256 JWT for the chosen mock user |
 | GET | `/auth/me` | Bearer | current user's name/email + `system_roles` for the page header and superuser-gated UI |
-| GET | `/catalog?q=&page=&page_size=` | Bearer | **every** resource, annotated with `effective_role`/`can_manage`/`can_fetch`, paginated, searchable by name at any depth |
+| GET | `/catalog?search=&page=&page_size=` | Bearer | **every** resource, annotated with `effective_role`/`can_manage`/`can_fetch`, paginated, searchable by name at any depth |
 | GET | `/grants/manageable-users?resource_id=` | Bearer | subordinates the caller may grant to; every user instead, if `resource_id` is inside the caller's own personal workspace |
 | GET | `/grants/{resource_id}` | Bearer | list grants directly on a resource |
 | PUT | `/grants/{resource_id}/{grantee_type}/{grantee_id}` | Bearer | set/change a grant — `grantee_type` is `user` or `team`; body `{role}` |
@@ -411,6 +417,7 @@ needed zero changes (DIP in action).
 | POST/DELETE | `/teams/{team_id}/members/{user_id}` | Bearer | add/remove a Team member |
 | GET | `/access/my-access/{resource_id}` | Bearer | explain the caller's own access to a resource |
 | GET | `/access/check-access/{resource_id}/{user_id}` | Bearer | Manager+/system-role only: explain someone else's access |
+| GET | `/access/admins/{resource_id}` | Bearer | ungated: every grantee resolving to Admin at the nearest gating ancestor — "who do I ask" when `effective_role` is `None` |
 | GET | `/audit/resource/{resource_id}` | Bearer | audit history for a resource |
 | GET | `/audit/actor/{actor_id}` | Bearer | audit history by actor |
 | GET | `/external/v1/my-access?page=&page_size=` | Bearer (forwarded end-user JWT) | other apps: maps the caller can reach + role, paginated over all maps |
@@ -487,6 +494,34 @@ mirroring each in-memory repo → `alembic/versions/0001_initial_schema.py` → 
 lifespan branches on `settings.database_url` → `scripts/seed.py`. See "Postgres
 persistence" above for the `ltree`/`grantee_key` design decisions.
 
+**UI consolidation, who-has-access, 100% backend coverage, Docker + CI** (2026-08-20,
+later addition, built and green, 197/197 backend tests passing at 100% line coverage on
+everything the hermetic suite can reach): frontend `ResourceNode.tsx` sheds its row of
+per-action buttons down to expand/name/role-badge/drag-handle + one "i" info button,
+opening new `ResourceInfoPanel.tsx` (hosts Create/Manage access/Restrictions/
+Delete-or-Remove-access + a new "Owners" lookup) → `MoveResourceModal.tsx` deleted,
+move becomes native HTML5 drag-and-drop directly on `ResourceNode.tsx`'s row (Admin-only
+draggable, any node a drop target, server error surfaced inline on rejection) →
+`CreateResourceModal.tsx` narrowed further to Folder-only (no type picker at all; Group
+creation is now backend-only) → `AccessResolver` grows `nearest_admins()` (shares the
+`nearest_grants`/`nearest_restriction` traversal via a new `_walk_up()` helper, no
+duplicated climb) → `AccessTransparencyService.list_admins()` + `GET /access/admins/
+{resource_id}` → `ResourceService.delete()`'s 409 message no longer includes the
+resource id, and the frontend hides Delete entirely (with a reason) instead of offering
+one that would fail → catalog's `q` query param renamed to `search` end-to-end
+(backend + `client.ts` + tests) → every router endpoint gains `summary`/`description`,
+plus app-level `description`/`version`/`openapi_tags` in `main.py`, so `/docs` is
+actually indicative now → `pytest-cov` added with `fail_under = 100`, an `omit` list for
+the DB-execution-only SQLAlchemy/repositories files, and table-style
+(`pytest.mark.parametrize`) tests closing every real gap → `docker-compose.yml` +
+`backend/Dockerfile` + `frontend/Dockerfile` (Postgres + backend + frontend,
+containerized, `backend/.env` untouched) and `.gitlab-ci.yml` (`backend-tests` +
+`frontend-checks`, path-scoped) added by parallel sessions, both independently verified
+against this work (CI's exact `pytest` sequence re-run end-to-end in an isolated venv
+with the git-sourced `adfs-auth`; Docker Desktop wasn't installed on this machine so its
+containers themselves weren't run, only their Dockerfiles/entrypoint logic reviewed and
+the underlying commands verified directly).
+
 **Phase 2 auth** (later, once inside the org network, not built yet): wire the
 already-built `adfs-auth` library's real OIDC validator behind
 `domain/ports/token_validator.py`/`token_issuer.py`; also still deferred: real
@@ -521,6 +556,33 @@ walkthrough against real ADFS once that's wired in.
    `psql` directly, not just through the app.
 5. `pytest` with `database_url` unset (the default, via `conftest.py`) still 79/79 —
    confirms the storage swap didn't regress Phase 1 in-memory mode.
+
+**UI consolidation, who-has-access, coverage, Docker + CI (2026-08-20, done, verified):**
+1. `pytest --cov=permissions_server` — 197/197 passing, 100% line coverage on the
+   `omit`-excluded scope (backend/pyproject.toml's `[tool.coverage]` config).
+2. `tsc -b && vite build` and `oxlint` — clean, no new errors/warnings.
+3. Manual browser walkthrough against real Postgres (DB mode, not in-memory): dragged a
+   Folder onto another Folder (moved correctly, confirmed via catalog refetch), dragged
+   a Layer onto another Layer (rejected 409, exact server message shown inline),
+   dragged a node onto itself (confirmed zero network requests fired — client-side
+   no-op), opened the info panel and ran Create/Manage access (grant + revoke)/
+   Restrictions (add + "Clear all", confirming the auto-whitelist-on-first-restriction
+   rule live)/Delete (both the empty-allowed and non-empty-disabled-with-reason cases)/
+   Remove access, confirmed the Owners lookup appears (and resolves real names) only for
+   a resource the logged-in user has no access to and never fires an extra request when
+   they do, confirmed `search=` (not `q=`) on the wire, checked `/docs` for the new
+   summaries/descriptions. No console errors across the whole session.
+4. CI simulation: rebuilt a clean venv, ran `.gitlab-ci.yml`'s exact `backend-tests`
+   sequence (sed-rewrite `adfs-auth` to its GitLab remote, `pip install -e ".[dev]"`,
+   `pytest -v`) end-to-end outside any pre-existing environment — passed, proving the
+   git-sourced `adfs-auth` install genuinely works, not just the sed pattern in
+   isolation. Also ran `frontend-checks`' exact sequence (`npm ci && npm run lint &&
+   npm run build`) for real.
+5. Docker itself: **not run** — Docker Desktop isn't installed on this machine.
+   `docker-compose.yml`/both `Dockerfile`s/`docker-entrypoint.sh` were reviewed instead,
+   and every command they contain (the `adfs-auth` sed rewrite, `alembic upgrade head`,
+   `scripts/seed.py`, `npm ci`) was verified directly on the host. `docker compose up`
+   itself is the one piece of this round still unverified end-to-end.
 
 **Phase 2 auth (once inside the org network, not yet applicable):** repeat the
 manual walkthrough with real ADFS wired in via `adfs-auth`.

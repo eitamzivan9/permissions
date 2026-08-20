@@ -131,16 +131,39 @@ so there's someone able to grant access from a cold start.
 4. Run `uvicorn` as above — it now uses the SQLAlchemy repositories instead of
    in-memory ones.
 
+## Running with Docker
+
+`docker compose up` at the repo root starts Postgres, the backend, and the frontend
+together — no local Python/Node/Postgres setup needed. See `docker-compose.yml`,
+`backend/Dockerfile`, `frontend/Dockerfile`. `backend/.env` is untouched by this path
+(compose overrides `PERMISSIONS_DATABASE_URL` to reach the `db` service by name), so
+switching between the two-terminal workflow above and Docker doesn't require any config
+changes. Migrations and seeding run automatically on container start
+(`backend/docker-entrypoint.sh`), same idempotent commands as the manual setup.
+
 ## Tests
 
 ```bash
 cd backend
-pytest
+pytest --cov=permissions_server
 ```
 
 `backend/tests/conftest.py` force-unsets `PERMISSIONS_DATABASE_URL`, so the suite
 always runs hermetically against in-memory repositories regardless of what
-`backend/.env` sets for normal runs.
+`backend/.env` sets for normal runs. `backend/pyproject.toml` enforces 100% coverage
+(`fail_under = 100`) on everything that suite can reach — a documented `omit` list
+excludes the SQLAlchemy repository files and a couple of other DB-execution-only
+modules, since those need a real Postgres connection the hermetic suite deliberately
+doesn't have.
+
+## CI
+
+`.gitlab-ci.yml` runs `backend-tests` (the same `pytest` above) and `frontend-checks`
+(`npm ci && npm run lint && npm run build`) as independent, path-scoped jobs. Both jobs
+rewrite `backend/pyproject.toml`'s local-path `adfs-auth` dependency to its GitLab
+remote at CI time only (never touching the committed file) — see
+`CLOSED_NETWORK_MIGRATION.md` for why that dependency needs special handling off this
+machine.
 
 ## Configuration
 
@@ -161,10 +184,12 @@ Backend settings (`backend/src/permissions_server/config.py`), all under the
 
 ```
 Premissions/
-├── CLAUDE.md      # durable architecture/design rules — read first
-├── PLAN.md        # full implementation plan, data model, API reference
-├── backend/       # FastAPI app (domain / application / infrastructure / api)
-└── frontend/      # React + TS + Tailwind SPA
+├── CLAUDE.md           # durable architecture/design rules — read first
+├── PLAN.md             # full implementation plan, data model, API reference
+├── docker-compose.yml  # Postgres + backend + frontend, containerized
+├── .gitlab-ci.yml      # backend-tests + frontend-checks CI jobs
+├── backend/            # FastAPI app (domain / application / infrastructure / api)
+└── frontend/           # React + TS + Tailwind SPA
 ```
 
 Backend follows hexagonal architecture: `domain/` (entities + ports, no framework
@@ -189,8 +214,14 @@ the full file guide.
   `SUPER_VIEWER` bypass it. The first restriction on a resource auto-whitelists the
   acting admin, and removing the last `Admin`-role entry while the resource would stay
   gated is blocked, to avoid orphaning access.
-- The frontend only lets you create/delete Folder and Group resources (real, empty-only
-  deletes). Map/Layer are never created or deleted from the UI — this server doesn't
-  own that data — the UI instead offers "Remove access" there, which revokes only your
-  own grant. No service-to-service auth exists yet for the system that owns that data
-  to call the (still-open) `POST`/`DELETE /resources` endpoints directly.
+- The frontend only lets you create/delete Folder resources (real, empty-only deletes —
+  a non-empty one shows a disabled note instead of a failing button). Group creation is
+  backend-only by deliberate choice; Map/Layer are never created or deleted from the UI
+  at all — this server doesn't own that data — the UI instead offers "Remove access"
+  there, which revokes only your own grant. No service-to-service auth exists yet for
+  the system that owns that data to call the (still-open) `POST`/`DELETE /resources`
+  endpoints directly.
+- Moving a resource is drag-and-drop only (no picker modal). Every per-resource action
+  (Create, Manage access, Restrictions, Delete/Remove access, plus an "Owners" lookup
+  when you have no access) lives behind one "i" info button per row instead of a row of
+  buttons.

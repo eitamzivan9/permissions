@@ -39,7 +39,7 @@ export default function Permissions() {
   const loadCatalog = useCallback(() => {
     setIsLoading(true);
     setError(null);
-    getCatalog({ q: query || undefined, page: 1, page_size: PAGE_SIZE })
+    getCatalog({ search: query || undefined, page: 1, page_size: PAGE_SIZE })
       .then((response) => {
         setItems(response.items);
         setTotal(response.total);
@@ -85,7 +85,7 @@ export default function Permissions() {
 
     function fetchNext(): Promise<void> {
       if (nextPage > totalPages) return Promise.resolve();
-      return getCatalog({ q: query || undefined, page: nextPage, page_size: PAGE_SIZE }).then(
+      return getCatalog({ search: query || undefined, page: nextPage, page_size: PAGE_SIZE }).then(
         (response) => {
           accumulated = [...accumulated, ...response.items];
           setItems(accumulated);

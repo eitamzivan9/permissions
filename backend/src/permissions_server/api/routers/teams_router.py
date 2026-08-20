@@ -1,3 +1,5 @@
+"""Team identity and membership."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -13,7 +15,12 @@ from permissions_server.domain.ports.team_repository import TeamRepository
 router = APIRouter(prefix="/teams", tags=["teams"])
 
 
-@router.get("", response_model=list[TeamOut])
+@router.get(
+    "",
+    response_model=list[TeamOut],
+    summary="List every team",
+    description="All teams in the system — any authenticated user may list them.",
+)
 async def list_teams(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     team_repository: Annotated[TeamRepository, Depends(get_team_repository)],
@@ -22,7 +29,13 @@ async def list_teams(
     return [TeamOut(id=t.id, name=t.name) for t in page.items]
 
 
-@router.post("", response_model=TeamOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=TeamOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new team",
+    description="Any authenticated user may create a team; it starts with no members.",
+)
 async def create_team(
     body: CreateTeamRequest,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
@@ -32,7 +45,11 @@ async def create_team(
     return TeamOut(id=team.id, name=team.name)
 
 
-@router.get("/{team_id}/members", response_model=list[TeamMemberOut])
+@router.get(
+    "/{team_id}/members",
+    response_model=list[TeamMemberOut],
+    summary="List a team's members",
+)
 async def list_team_members(
     team_id: str,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
@@ -42,7 +59,12 @@ async def list_team_members(
     return [TeamMemberOut(user_id=uid) for uid in member_ids]
 
 
-@router.post("/{team_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{team_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Add a user to a team",
+    description="Idempotent — adding an already-present member is a no-op.",
+)
 async def add_team_member(
     team_id: str,
     user_id: str,
@@ -53,7 +75,12 @@ async def add_team_member(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/{team_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{team_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a user from a team",
+    description="Idempotent — removing a non-member is a no-op.",
+)
 async def remove_team_member(
     team_id: str,
     user_id: str,

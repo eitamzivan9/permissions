@@ -87,6 +87,21 @@ npm --prefix frontend run dev
 One-time setup before the first run (idempotent, safe to re-run): `cd backend`, then
 `alembic upgrade head` followed by `python scripts/seed.py`.
 
+**Docker alternative**: `docker compose up` at the repo root runs the same three pieces
+(Postgres, backend, frontend) in containers — see `docker-compose.yml`,
+`backend/Dockerfile`, `frontend/Dockerfile`. `backend/.env` itself is untouched by this
+path (the compose file overrides `PERMISSIONS_DATABASE_URL` to reach the `db` service by
+name instead), so the two-terminal workflow above keeps working unchanged either way.
+`backend/docker-entrypoint.sh` runs the same idempotent `alembic upgrade head` +
+`scripts/seed.py` on every container start, so there's no separate manual setup step
+inside Docker. Both Dockerfile and `.gitlab-ci.yml` rewrite `pyproject.toml`'s
+`adfs-auth` local-path dependency at build/CI time (via `sed`, never touching the
+committed file) to a reachable source — a copied build context locally in Docker, the
+sibling `adfs-auth` GitLab repo in CI — since neither a container nor a CI runner can
+see `C:\Users\Eitam\adfs-auth`. This is the same workaround `CLOSED_NETWORK_MIGRATION.md`
+describes as the eventual real fix (publish `adfs-auth` to a package index) not yet
+having been done.
+
 ## Stack
 
 - Backend: Python, FastAPI. Storage: in-memory repositories
@@ -154,11 +169,12 @@ orchestrated — validate → authorize → write → auto-grant, never duplicat
   via `PermissionGrantService.bootstrap_admin_grant()` (bypasses `can_manage` —
   inapplicable on a brand-new resource with no admin yet). The endpoint itself accepts
   any `ResourceType` — **no backend restriction** — but `CreateResourceModal.tsx` only
-  offers Folder and Group (confirmed with the project owner): this server doesn't own
-  Map/Layer data, so creating those is meant to happen server-to-server, not from this
-  UI. That server-to-server path isn't built yet (no service-credential auth exists) —
-  `POST /resources` stays open and callable manually in the meantime; see "Known
-  deferred work" below.
+  offers Folder (Group creation is backend-only by deliberate choice, confirmed with the
+  project owner — the frontend picker has no type selector at all, just a name field):
+  this server doesn't own Map/Layer data, so creating those (and Group, now) is meant to
+  happen server-to-server or manually, not from this UI. That server-to-server path
+  isn't built yet (no service-credential auth exists) — `POST /resources` stays open and
+  callable manually in the meantime; see "Known deferred work" below.
 - `delete(actor, resource_id)` — `DELETE /resources/{id}`. Admin-only, same as before,
   but now type-dependent: for Workspace/Folder/Group (`is_organizational()` in
   `domain/entities.py`) it only succeeds when `children_of(resource_id)` is empty (409
@@ -167,12 +183,15 @@ orchestrated — validate → authorize → write → auto-grant, never duplicat
   delete (every grant/restriction in the subtree cleaned up, then the resource rows) —
   deliberately untouched, since Map is structurally capable of holding children too but
   represents data this server doesn't own. The frontend never calls this endpoint for
-  Map/Layer at all: `ResourceNode.tsx`'s button is "Delete" (Workspace/Folder/Group,
-  Admin-gated) or "Remove access" (Map/Layer, any role) — the latter calls
+  Map/Layer at all: `ResourceInfoPanel.tsx`'s action is "Delete" (Workspace/Folder/Group,
+  Admin-gated, and only offered when the resource has no children — a non-empty one
+  shows a disabled note instead, so the action is never offered only to fail) or "Remove
+  access" (Map/Layer, any role) — the latter calls
   `DELETE /grants/{resource_id}/user/{actor_id}` instead, revoking only the acting
   user's own grant, never touching the Resource row. Self-revocation this way is
   always allowed regardless of role-rank or org-chart position — see "Delegation
-  rule" below.
+  rule" below. The 409 conflict message for a non-empty delete never includes the
+  resource id — it's not actionable for the caller and doesn't need to leak.
 - `get_or_create_my_workspace(actor)` — `GET /resources/my-workspace`. Every
   authenticated user gets exactly one personal root Workspace, identified by
   `Resource.owner_id == actor.id` (`ResourceRepository.find_workspace_by_owner()`).
@@ -190,10 +209,14 @@ orchestrated — validate → authorize → write → auto-grant, never duplicat
 - `move(actor, resource_id, new_parent_id)` — `PATCH /resources/{id}/move`. Requires
   Admin at the resource being moved and Editor+ at the destination; rejects moving a
   resource into its own subtree (checked via `path_to_root(new_parent_id)`). Frontend:
-  `MoveResourceModal.tsx` (search-and-pick destination, not drag-and-drop — deliberate,
-  the tree component has no drag infrastructure and a picker gives a confirm step
-  before a structural change), wired into `ResourceNode.tsx` behind a "Move" button
-  gated on `effective_role === "admin"` (mirrors the backend's source-resource check).
+  **drag-and-drop only** (confirmed with the project owner — the earlier search-and-pick
+  `MoveResourceModal.tsx` picker is gone, not kept as a fallback). `ResourceNode.tsx`
+  makes a row `draggable` only when `effective_role === "admin"` (mirrors the backend's
+  source-resource check — a UX hint only, the server re-checks regardless); every row is
+  a valid drop target, with a rejected drop (wrong type pairing, into-own-subtree, no
+  Editor+ at the destination) surfacing the server's exact error message inline on the
+  drop-target node. A drop onto the dragged node itself is a client-side no-op — no
+  request is sent.
 
 **Personal-workspace delegation bypass**: normally granting/restricting a *user*
 grantee requires the actor be transitively above that user in the org chart (see
@@ -300,13 +323,26 @@ workspaces.
 no role of its own is still `can_fetch=true` if the caller can reach even one
 descendant (e.g. a Map is fetchable if the caller has a role on just one Layer inside
 it, since the map has to load to render that layer). Search matches any resource by
-name at any depth, returning it with its full subtree. A "manage access" affordance
-appears only where `can_manage` is true (effective role is Manager or Admin). A
-"+ Create" affordance (`CreateResourceModal.tsx`, Folder/Group only — see "Resource
-creation..." above) appears at Editor+; a "Restrictions" affordance
-(`RestrictionsModal.tsx`) and a "Move" affordance (`MoveResourceModal.tsx`) appear at
-Admin only. Workspace/Folder/Group show a "Delete" affordance at Admin (empty-only, see
-above); Map/Layer show "Remove access" instead, at any role that holds one.
+name at any depth, returning it with its full subtree.
+
+**Per-resource actions live behind one "i" info button, not a row of buttons**
+(confirmed with the project owner — supersedes the original one-button-per-action row).
+`ResourceNode.tsx` renders just the row itself (expand chevron, type/name, role badge,
+drag handle when applicable) plus that single info button; clicking it opens
+`ResourceInfoPanel.tsx`, which owns the same gating logic the row used to and renders
+whichever actions currently apply: "+ Create" (`CreateResourceModal.tsx`, Folder only —
+see "Resource creation..." above) at Editor+; "Manage access" (`ManageAccessModal.tsx`)
+where `can_manage` is true (Manager or Admin); "Restrictions" (`RestrictionsModal.tsx`)
+at Admin only; "Delete" (Workspace/Folder/Group, Admin, empty-only — a non-empty one
+shows a disabled note instead, never an offered-then-failing button) or "Remove access"
+(Map/Layer, any role that holds one) instead of Delete. Move is not in this panel at
+all — it's drag-and-drop only, directly on the row (see "Resource creation..." above).
+When the caller's own `effective_role` here is `None`, the panel also shows an "Owners"
+section — every grantee (user or team) that resolves to Admin at the nearest ancestor
+gating this resource, via `GET /access/admins/{resource_id}`
+(`AccessResolver.nearest_admins()` / `AccessTransparencyService.list_admins()`) — so the
+caller knows who to ask; this lookup only fires when there's no access, never as a
+wasted round trip when there already is one.
 
 The catalog list itself is paginated at `PAGE_SIZE = 3` (`Permissions.tsx`) with a
 "Show all" control instead of Previous/Next — clicking it loops the same paginated
@@ -317,11 +353,12 @@ everything is loaded. Kept on its own loading flag, separate from the primary
 
 `Permissions.tsx`'s catalog render must never gate the resource-tree block on
 `isLoading` alone (only on `items.length === 0`, for the true first load) — every modal
-(`ManageAccessModal`, `RestrictionsModal`, `CreateResourceModal`) lives inside a
-`ResourceNode`, and `onChanged`'s background refetch briefly sets `isLoading`. Gating
-the whole tree on it unmounts every `ResourceNode` mid-refetch, closing whatever modal
-was open before its success message ever renders — found via manual UI testing
-2026-07-31, not caught by the test suite (a frontend interaction bug, not a logic bug).
+(`ManageAccessModal`, `RestrictionsModal`, `CreateResourceModal`) lives inside
+`ResourceInfoPanel`, which itself lives inside a `ResourceNode`, and `onChanged`'s
+background refetch briefly sets `isLoading`. Gating the whole tree on it unmounts every
+`ResourceNode` mid-refetch, closing whatever modal was open before its success message
+ever renders — found via manual UI testing 2026-07-31, not caught by the test suite (a
+frontend interaction bug, not a logic bug).
 
 ## Delegation rule (who can change whose grant)
 
@@ -366,6 +403,16 @@ on the one that actually wins. `my_access` exposes this for the caller's own acc
 ungated; `check_access` lets a Manager+ (or system role) inspect anyone else's access to
 a resource, gated the same way `can_manage`'s role-rank check is.
 
+A third method, `list_admins()` (`GET /access/admins/{resource_id}`, also ungated),
+answers a narrower "who do I ask" question instead of a full explanation: every grantee
+that resolves to Admin at the nearest ancestor gating the resource, restriction-aware,
+resolved to display names via `UserDirectory`/`TeamRepository`. Built on a new
+`AccessResolver.nearest_admins()` that reuses the same nearest-ancestor-wins traversal
+`nearest_grants()`/`nearest_restriction()` use (extracted into a shared `_walk_up()`
+helper so the "stop at the first `inherits_from_parent=False` node" rule exists exactly
+once) — never duplicate this climb. Powers `ResourceInfoPanel.tsx`'s "Owners" section
+(see "UI scope" above).
+
 ## Scale assumptions
 
 ~2,000-3,000 users, 5,000-10,000 maps (each with a handful of layers). List/search
@@ -374,6 +421,29 @@ an unpaginated "list everything" endpoint, in-memory or Postgres. The mock user 
 is intentionally small (~30-50 users) for readability; don't assume its size reflects
 production scale when reasoning about performance — check against the row counts above
 instead.
+
+## Tests and CI
+
+Backend: `pytest --cov=permissions_server` from `backend/`, hermetic/in-memory always
+(see "Running the app" above). `backend/pyproject.toml`'s `[tool.coverage]` config
+enforces `fail_under = 100` on everything the hermetic suite can reach — `omit`s the
+SQLAlchemy repository files, `infrastructure/db/session.py`/`types.py`, and
+`infrastructure/repositories/_pagination.py` explicitly, since those only execute
+meaningfully against a real Postgres connection the hermetic suite deliberately doesn't
+have. Don't chase 100% by weakening that boundary (e.g. flipping conftest's DB-URL
+force-unset) — extend the `omit` list with the same reasoning instead, or add a real
+DB-backed test tier if that boundary ever needs to move. Table-style coverage (many
+`Role` × restricted/unrestricted × personal-workspace × system-role combinations) lives
+as `pytest.mark.parametrize` cases colocated in the existing `tests/unit`/
+`tests/integration` files — extend those, don't fork parallel suites.
+
+`.gitlab-ci.yml` runs two independent jobs (path-scoped via `rules: changes`, so an
+unrelated frontend-only change doesn't re-run backend tests and vice versa):
+`backend-tests` (the same `pytest` above, in a fresh `python:3.11` venv) and
+`frontend-checks` (`npm ci && npm run lint && npm run build`, i.e. `oxlint` +
+`tsc -b`-via-`vite build`). Both rewrite `adfs-auth`'s dependency line the same way the
+Dockerfile does (see "Running the app" above) — CI-only, never touching the committed
+`pyproject.toml`.
 
 ## Known, deliberate departures from the reference design docs (do not "fix" — ask first)
 

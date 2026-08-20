@@ -147,7 +147,7 @@ class ResourceService:
             children = await self._resource_repository.children_of(resource_id)
             if children:
                 raise ConflictError(
-                    f"{resource_id} has {len(children)} child resource(s); "
+                    f"cannot delete: {len(children)} child resource(s) exist; "
                     "remove them before deleting"
                 )
 

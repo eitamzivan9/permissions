@@ -301,3 +301,36 @@ async def test_list_manageable_users_returns_everyone_for_super_editor(
     users = await permission_grant_service.list_manageable_users(ACTOR, resource_id=MAP_ID)
     ids = {u.id for u in users}
     assert NOT_SUBORDINATE_ID in ids
+
+
+async def test_bootstrap_admin_grant_records_grant_when_none_existed(
+    permission_grant_service, grant_repo, audit_log_repo
+):
+    await permission_grant_service.bootstrap_admin_grant(ACTOR, SUBORDINATE_ID, MAP_ID)
+    grant = await grant_repo.get_grant(SUBORDINATE_GRANTEE, MAP_ID)
+    assert grant.role is Role.ADMIN
+
+    history = await audit_log_repo.list_for_resource(MAP_ID, page=1, page_size=20)
+    assert any(
+        e.grantee == SUBORDINATE_GRANTEE and e.action is AuditAction.GRANT for e in history.items
+    )
+
+
+async def test_bootstrap_admin_grant_records_role_change_when_non_admin_grant_existed(
+    permission_grant_service, grant_repo, audit_log_repo
+):
+    """Not the normal path (a brand-new resource has no prior grant at
+    all), but bootstrap_admin_grant is unconditional — if the target
+    already held a lesser role here for some other reason, promoting them
+    to Admin must log ROLE_CHANGE, not a fresh GRANT."""
+    await grant_repo.upsert_grant(SUBORDINATE_GRANTEE, MAP_ID, Role.VIEWER, granted_by="seed")
+
+    await permission_grant_service.bootstrap_admin_grant(ACTOR, SUBORDINATE_ID, MAP_ID)
+
+    grant = await grant_repo.get_grant(SUBORDINATE_GRANTEE, MAP_ID)
+    assert grant.role is Role.ADMIN
+    history = await audit_log_repo.list_for_resource(MAP_ID, page=1, page_size=20)
+    assert any(
+        e.grantee == SUBORDINATE_GRANTEE and e.action is AuditAction.ROLE_CHANGE
+        for e in history.items
+    )

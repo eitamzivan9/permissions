@@ -8,7 +8,7 @@ from permissions_server.domain.entities import (
     ResourceType,
     Role,
 )
-from permissions_server.domain.errors import ConflictError
+from permissions_server.domain.errors import ConflictError, ForbiddenError
 
 # Real mock-org-chart ids (see mock_users.json): u002 manages u004/u005
 # directly and u016 transitively (u002 -> u004 -> u008 -> u016) — needed
@@ -133,6 +133,49 @@ async def test_revoke_admin_restriction_succeeds_when_another_admin_remains(
 
     assert await restriction_repo.get_restriction(admin_grantee, resource.id) is None
     assert await restriction_repo.get_restriction(other_admin_grantee, resource.id) is not None
+
+
+async def test_set_restriction_role_change_when_grantee_already_restricted(
+    restriction_service, restriction_repo, grant_repo, resource, audit_log_repo
+):
+    await _make_admin(grant_repo, ADMIN, resource.id)
+    await restriction_service.set_restriction(
+        ADMIN, OTHER_USER_GRANTEE, resource.id, Role.VIEWER
+    )
+    await restriction_service.set_restriction(
+        ADMIN, OTHER_USER_GRANTEE, resource.id, Role.EDITOR
+    )
+
+    entry = await restriction_repo.get_restriction(OTHER_USER_GRANTEE, resource.id)
+    assert entry.role is Role.EDITOR
+
+    history = await audit_log_repo.list_for_resource(resource.id, page=1, page_size=20)
+    assert any(
+        e.grantee == OTHER_USER_GRANTEE and e.action is AuditAction.RESTRICTION_ROLE_CHANGE
+        for e in history.items
+    )
+
+
+async def test_revoke_restriction_is_a_no_op_when_none_exists(
+    restriction_service, restriction_repo, grant_repo, resource
+):
+    await _make_admin(grant_repo, ADMIN, resource.id)
+    # No restriction was ever placed on OTHER_USER_GRANTEE — must not raise.
+    await restriction_service.revoke_restriction(ADMIN, OTHER_USER_GRANTEE, resource.id)
+    assert await restriction_repo.get_restriction(OTHER_USER_GRANTEE, resource.id) is None
+
+
+async def test_revoke_restriction_forbidden_without_admin(
+    restriction_service, restriction_repo, grant_repo, resource
+):
+    await _make_admin(grant_repo, ADMIN, resource.id)
+    await restriction_service.set_restriction(
+        ADMIN, OTHER_USER_GRANTEE, resource.id, Role.VIEWER
+    )
+
+    non_admin = AuthenticatedUser(id="u005", name="Tomas Vega", email="tomas.vega@geoteam.example")
+    with pytest.raises(ForbiddenError):
+        await restriction_service.revoke_restriction(non_admin, OTHER_USER_GRANTEE, resource.id)
 
 
 async def test_revoke_non_admin_restriction_never_blocked_by_last_admin_guard(

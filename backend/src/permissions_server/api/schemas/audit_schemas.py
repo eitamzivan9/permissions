@@ -1,3 +1,5 @@
+"""Wire schemas for api/routers/audit_router.py."""
+
 from __future__ import annotations
 
 from datetime import datetime

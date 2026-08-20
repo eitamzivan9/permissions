@@ -1,3 +1,5 @@
+"""The main resource-tree listing endpoint."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -24,16 +26,31 @@ def _to_out(item: CatalogItem) -> CatalogItemOut:
     )
 
 
-@router.get("", response_model=CatalogPageOut)
+@router.get(
+    "",
+    response_model=CatalogPageOut,
+    summary="List every resource, annotated with the caller's own access",
+    description=(
+        "Returns the full resource tree (every Workspace/Folder/Map/Group/Layer, not "
+        "just ones the caller can reach) with the caller's own effective_role, "
+        "can_manage, and can_fetch on each item — except another user's personal "
+        "workspace, which is hidden entirely unless the caller can reach some part of "
+        "it. Paginated; use `search` to filter by resource name at any depth, which "
+        "returns each match together with its full subtree."
+    ),
+)
 async def get_catalog(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     catalog_service: Annotated[CatalogService, Depends(get_catalog_service)],
-    q: str | None = Query(default=None),
+    search: str | None = Query(
+        default=None,
+        description="Case-insensitive substring match against resource name, at any depth.",
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> CatalogPageOut:
     result = await catalog_service.get_catalog(
-        current_user.id, search=q, page=page, page_size=page_size
+        current_user.id, search=search, page=page, page_size=page_size
     )
     return CatalogPageOut(
         items=[_to_out(item) for item in result.items],

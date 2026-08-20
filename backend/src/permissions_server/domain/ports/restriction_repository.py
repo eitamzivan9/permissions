@@ -1,3 +1,5 @@
+"""Storage contract for the restriction whitelist gate — the twin of grant_repository.py."""
+
 from __future__ import annotations
 
 from typing import Protocol

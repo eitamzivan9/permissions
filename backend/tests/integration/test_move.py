@@ -104,6 +104,12 @@ async def test_move_to_nonexistent_destination_is_404(client):
     assert resp.status_code == 404
 
 
+async def test_move_of_nonexistent_resource_is_404(client):
+    root_token = await login_as(client, ROOT)
+    resp = await _move(client, root_token, "resource-does-not-exist", DEST_FOLDER_ID)
+    assert resp.status_code == 404
+
+
 async def test_restricted_destination_blocks_the_move(client):
     root_token = await login_as(client, ROOT)
     await _grant_user(client, root_token, MAP_ID, VP_SUBORDINATE, "admin")

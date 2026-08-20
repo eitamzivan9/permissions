@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { ResourceType } from "../api/client";
 import { createResource } from "../api/client";
 
 interface CreateResourceModalProps {
@@ -10,21 +9,17 @@ interface CreateResourceModalProps {
   onCreated: () => void;
 }
 
-// Map/Layer are never frontend-creatable — this permissions server doesn't
-// own that data, creation is meant to happen server-to-server. Only these
-// two purely-organizational types are offered here.
-const TYPE_OPTIONS: { value: ResourceType; label: string }[] = [
-  { value: "folder", label: "Folder" },
-  { value: "group", label: "Group" },
-];
-
+// Map/Layer/Group are never frontend-creatable — this permissions server
+// doesn't own that data (Map/Layer), and Group creation is backend-only by
+// deliberate choice (confirmed with the project owner). Only Folder is
+// offered here, so there's no type picker at all — POST /resources itself
+// still accepts any ResourceType for server-to-server/manual calls.
 export default function CreateResourceModal({
   parentId,
   parentName,
   onClose,
   onCreated,
 }: CreateResourceModalProps) {
-  const [type, setType] = useState<ResourceType>("folder");
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +29,7 @@ export default function CreateResourceModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      await createResource({ type, name: name.trim(), parentId });
+      await createResource({ type: "folder", name: name.trim(), parentId });
       onCreated();
       onClose();
     } catch (err: unknown) {
@@ -55,7 +50,7 @@ export default function CreateResourceModal({
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Create resource</h3>
+            <h3 className="text-base font-semibold text-slate-900">Create folder</h3>
             <p className="mt-0.5 truncate text-sm text-slate-500">Inside {parentName}</p>
           </div>
           <button
@@ -69,24 +64,6 @@ export default function CreateResourceModal({
         </div>
 
         <div className="mt-5 space-y-3">
-          <div>
-            <label htmlFor="create-resource-type" className="block text-sm font-medium text-slate-700">
-              Type
-            </label>
-            <select
-              id="create-resource-type"
-              className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
-              value={type}
-              onChange={(event) => setType(event.target.value as ResourceType)}
-            >
-              {TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div>
             <label htmlFor="create-resource-name" className="block text-sm font-medium text-slate-700">
               Name

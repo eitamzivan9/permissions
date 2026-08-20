@@ -1,3 +1,5 @@
+"""PostgreSQL-backed AuditLogRepository, used when PERMISSIONS_DATABASE_URL is set."""
+
 from __future__ import annotations
 
 from sqlalchemy import select

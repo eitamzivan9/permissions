@@ -1,3 +1,5 @@
+"""FastAPI app factory and startup wiring — builds either in-memory or SQLAlchemy repositories depending on PERMISSIONS_DATABASE_URL."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -117,9 +119,32 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await engine.dispose()
 
 
+OPENAPI_TAGS = [
+    {"name": "auth", "description": "Login and identity — mocked ADFS today (see domain/ports/token_*)."},
+    {"name": "catalog", "description": "The main resource-tree listing, annotated with the caller's own access."},
+    {"name": "resources", "description": "Create, move, and delete Workspace/Folder/Map/Group/Layer resources."},
+    {"name": "grants", "description": "Per-resource role grants for a user or team grantee."},
+    {"name": "restrictions", "description": "The whitelist gate layered on top of ordinary grants."},
+    {"name": "access", "description": "Access transparency: explain or list who has what, and why."},
+    {"name": "audit", "description": "Append-only history of every grant/restriction change."},
+    {"name": "teams", "description": "Team identity and membership (a Team is a grantee, not a user)."},
+    {"name": "external", "description": "The one endpoint other internal apps call to check map access."},
+]
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Permissions Server", lifespan=lifespan)
+    app = FastAPI(
+        title="Permissions Server",
+        description=(
+            "Permissions/access-control server for the geography team's resource "
+            "tree (workspaces, folders, maps, groups, layers). Owns permissions "
+            "only — never resource feature data, never a users table."
+        ),
+        version="0.1.0",
+        openapi_tags=OPENAPI_TAGS,
+        lifespan=lifespan,
+    )
 
     app.add_middleware(
         CORSMiddleware,

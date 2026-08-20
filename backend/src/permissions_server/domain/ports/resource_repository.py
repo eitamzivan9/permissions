@@ -1,3 +1,5 @@
+"""Storage contract for the Workspace/Folder/Map/Group/Layer resource tree."""
+
 from __future__ import annotations
 
 from typing import Protocol

@@ -1,0 +1,45 @@
+stages:
+  - test
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  ADFS_AUTH_GIT_URL: "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/eitamzivan9/adfs-auth.git"
+
+backend-tests:
+  stage: test
+  image: python:3.11
+  cache:
+    paths:
+      - .cache/pip
+  rules:
+    - changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+  before_script:
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - pip install --upgrade pip
+    # backend/pyproject.toml pins adfs-auth to a file:// path on the dev machine
+    # (see CLOSED_NETWORK_MIGRATION.md #2 — not yet published to a package index).
+    # Point CI at the sibling GitLab repo instead of touching the committed file.
+    - sed -i "s#adfs-auth @ file:///C:/Users/Eitam/adfs-auth#adfs-auth @ git+${ADFS_AUTH_GIT_URL}#" backend/pyproject.toml
+  script:
+    - cd backend
+    - pip install -e ".[dev]"
+    - pytest -v
+
+frontend-checks:
+  stage: test
+  image: node:22
+  cache:
+    paths:
+      - frontend/node_modules
+  rules:
+    - changes:
+        - frontend/**/*
+        - .gitlab-ci.yml
+  script:
+    - cd frontend
+    - npm ci
+    - npm run lint
+    - npm run build

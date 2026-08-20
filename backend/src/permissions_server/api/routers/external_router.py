@@ -1,3 +1,5 @@
+"""The one endpoint other internal apps call to check a user's map access."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -27,7 +29,18 @@ class ExternalMyAccessPageOut(BaseModel):
     page_size: int
 
 
-@router.get("/my-access", response_model=ExternalMyAccessPageOut)
+@router.get(
+    "/my-access",
+    response_model=ExternalMyAccessPageOut,
+    summary="List the maps the caller can reach, for other internal apps",
+    description=(
+        "Called by other internal apps (forwarding the end-user's ADFS JWT as this "
+        "endpoint's own bearer token) to get every Map the caller has a role on, "
+        "directly or via inheritance. `role` is None when the map has no direct/"
+        "inherited role of its own but is still reachable via at least one accessible "
+        "Layer inside it. Paginated by design — do not assume a small total."
+    ),
+)
 async def get_my_access(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     catalog_service: Annotated[CatalogService, Depends(get_catalog_service)],

@@ -1,3 +1,5 @@
+"""Wraps adfs-auth's testing.MockTokenValidator behind the TokenValidator port, resolving name/email via UserDirectory."""
+
 from __future__ import annotations
 
 from adfs_auth import InvalidTokenError as AdfsInvalidTokenError

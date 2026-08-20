@@ -1,3 +1,5 @@
+"""Wire schemas for api/routers/auth_router.py."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel

@@ -1,3 +1,5 @@
+"""Who manages whom — backs the org-chart delegation check on user grantees."""
+
 from __future__ import annotations
 
 from typing import Protocol

@@ -1,3 +1,5 @@
+"""Read-only endpoints over the append-only audit log."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -32,7 +34,17 @@ def _to_out(entry: AuditLogEntry) -> AuditLogEntryOut:
     )
 
 
-@router.get("/resource/{resource_id}", response_model=AuditLogPageOut)
+@router.get(
+    "/resource/{resource_id}",
+    response_model=AuditLogPageOut,
+    summary="Audit history for a resource",
+    description=(
+        "Every GRANT/ROLE_CHANGE/REVOKE (and RESTRICT/UNRESTRICT/"
+        "RESTRICTION_ROLE_CHANGE) event ever recorded on this resource, newest "
+        "first. Requires Manager+ effective_role at the resource (or a system role) "
+        "— 403 otherwise."
+    ),
+)
 async def audit_for_resource(
     resource_id: str,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
@@ -57,7 +69,16 @@ async def audit_for_resource(
     )
 
 
-@router.get("/actor/{actor_id}", response_model=AuditLogPageOut)
+@router.get(
+    "/actor/{actor_id}",
+    response_model=AuditLogPageOut,
+    summary="Audit history for actions taken BY a user",
+    description=(
+        "Every audit entry where `actor_id` is the one who took the action, newest "
+        "first. Always allowed for the caller's own actor_id; inspecting someone "
+        "else's requires a system role — 403 otherwise."
+    ),
+)
 async def audit_for_actor(
     actor_id: str,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],

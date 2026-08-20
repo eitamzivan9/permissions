@@ -1,3 +1,5 @@
+"""Per-resource role grants for a user or team grantee."""
+
 from __future__ import annotations
 
 from typing import Annotated, Literal
@@ -48,7 +50,17 @@ async def _ensure_resource_exists(
         raise NotFoundError(f"no resource with id {resource_id}")
 
 
-@router.get("/manageable-users", response_model=list[MockUserOut])
+@router.get(
+    "/manageable-users",
+    response_model=list[MockUserOut],
+    summary="List users the caller may grant/restrict",
+    description=(
+        "Users the caller is transitively above in the org chart (see the "
+        "delegation rule) — or, when `resource_id` falls inside the caller's own "
+        "personal workspace, every user (the personal-workspace delegation bypass). "
+        "`resource_id` is optional; omit it for the org-chart-only list."
+    ),
+)
 async def list_manageable_users(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     permission_grant_service: Annotated[
@@ -62,7 +74,16 @@ async def list_manageable_users(
     return [MockUserOut(id=u.id, name=u.name, email=u.email) for u in users]
 
 
-@router.get("/{resource_id}", response_model=list[GrantOut])
+@router.get(
+    "/{resource_id}",
+    response_model=list[GrantOut],
+    summary="List explicit grants directly on a resource",
+    description=(
+        "Every explicit grant (any grantee) directly on this resource — not "
+        "inherited ones from ancestors. Drives the 'who already has access here' "
+        "list in the Manage Access UI."
+    ),
+)
 async def list_grants_for_resource(
     resource_id: str,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
@@ -72,7 +93,19 @@ async def list_grants_for_resource(
     return [_to_out(g) for g in grants]
 
 
-@router.put("/{resource_id}/{grantee_type}/{grantee_id}", response_model=GrantOut)
+@router.put(
+    "/{resource_id}/{grantee_type}/{grantee_id}",
+    response_model=GrantOut,
+    summary="Grant (or change) a role for a user or team on a resource",
+    description=(
+        "`grantee_type` is `user` or `team`. Requires the caller's effective_role at "
+        "the resource be Manager (Editor/Viewer only) or Admin (any role); for a "
+        "`user` grantee, the caller must also be transitively above them in the org "
+        "chart, unless the resource sits inside the caller's own personal workspace. "
+        "A re-grant of the exact same role is a no-op and logs nothing to the audit "
+        "trail."
+    ),
+)
 async def set_grant(
     resource_id: str,
     grantee_type: GranteeTypePath,
@@ -91,7 +124,15 @@ async def set_grant(
 
 
 @router.delete(
-    "/{resource_id}/{grantee_type}/{grantee_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/{resource_id}/{grantee_type}/{grantee_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke a user's or team's grant on a resource",
+    description=(
+        "Same authorization as PUT, EXCEPT an actor may always revoke their OWN "
+        "user grant, regardless of role-rank or org-chart position — 'remove my own "
+        "access' isn't delegation to anyone. This is what powers the frontend's "
+        "'Remove access' action on Map/Layer nodes."
+    ),
 )
 async def delete_grant(
     resource_id: str,

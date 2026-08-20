@@ -38,3 +38,17 @@ async def test_subordinates_of_terminates_and_finds_real_subordinates():
     assert "d" in result
     assert "b" in result
     assert "c" in result
+
+
+DANGLING_MANAGER_RECORDS = [
+    {"id": "x", "name": "X", "email": "x@x", "manager_id": "ghost-not-in-fixture"},
+]
+
+
+async def test_is_manager_of_false_when_chain_ends_at_a_dangling_manager_id(monkeypatch):
+    """Data-integrity edge case distinct from a cycle: manager_id points at
+    an id with no record at all, so the walk-up loop exits naturally
+    (current becomes None) rather than via the visited-set guard."""
+    monkeypatch.setattr(org_module, "load_mock_users", lambda: DANGLING_MANAGER_RECORDS)
+    org = MockOrgHierarchy()
+    assert await org.is_manager_of("anyone", "x") is False

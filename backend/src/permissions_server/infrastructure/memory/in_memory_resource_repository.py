@@ -1,3 +1,5 @@
+"""In-memory ResourceRepository — Phase 1 storage, used when PERMISSIONS_DATABASE_URL is unset."""
+
 from __future__ import annotations
 
 from uuid import uuid4

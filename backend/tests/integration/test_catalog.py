@@ -35,7 +35,7 @@ async def test_catalog_shows_full_tree_with_none_for_ungranted_user(client):
 
 async def test_root_user_has_admin_from_bootstrap_seed(client):
     token = await login_as(client, "u001")
-    resp = await client.get("/catalog", headers=auth_headers(token), params={"q": "City Roads"})
+    resp = await client.get("/catalog", headers=auth_headers(token), params={"search": "City Roads"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
@@ -48,7 +48,7 @@ async def test_root_user_has_admin_from_bootstrap_seed(client):
 async def test_catalog_search_filters_by_name(client):
     token = await login_as(client, "u001")
     resp = await client.get(
-        "/catalog", headers=auth_headers(token), params={"q": "zzz-nomatch"}
+        "/catalog", headers=auth_headers(token), params={"search": "zzz-nomatch"}
     )
     assert resp.status_code == 200
     assert resp.json()["total"] == 0

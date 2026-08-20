@@ -1,3 +1,5 @@
+"""Fixture-backed UserDirectory implementation over mock_users.json."""
+
 from __future__ import annotations
 
 from permissions_server.domain.entities import AuthenticatedUser

@@ -1,3 +1,5 @@
+"""Fixture-backed OrgHierarchy implementation, derived from mock_users.json's manager_id field."""
+
 from __future__ import annotations
 
 from permissions_server.infrastructure.auth._mock_users_fixture import load_mock_users

@@ -1,3 +1,5 @@
+"""Storage contract for per-resource role grants — in-memory and SQLAlchemy implementations must be drop-in substitutes (LSP)."""
+
 from __future__ import annotations
 
 from typing import Protocol
