@@ -101,5 +101,10 @@
   "99": "Base",
   "100": "CreateResourceModal.tsx",
   "101": ".__init__",
-  "102": "docker-entrypoint.sh"
+  "102": "docker-entrypoint.sh",
+  "103": "EntityRepository",
+  "104": "TokenValidator",
+  "105": "TokenValidator",
+  "106": "test_catalog.py",
+  "107": ".can_manage"
 }

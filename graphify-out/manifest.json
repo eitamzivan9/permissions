@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "backend/pyproject.toml": {
-    "mtime": 1787257571.8643959,
-    "ast_hash": "4d689cf0c40f1801ae01818ed2f540f9",
+    "mtime": 1787303685.195722,
+    "ast_hash": "3aae09762b1f2c1d13df214b8720671a",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/__init__.py": {
@@ -335,13 +335,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1787259778.2721837,
-    "ast_hash": "0de9fa2b8694da0bbe7e99b11fc99c23",
-    "semantic_hash": ""
-  },
-  "PLAN.md": {
-    "mtime": 1787260062.6732852,
-    "ast_hash": "8363a5c1e7e108d56634df31c9519a5b",
+    "mtime": 1787312018.9764009,
+    "ast_hash": "8e0d8fd22f377f56574699bfd02f2d52",
     "semantic_hash": ""
   },
   "frontend/README.md": {
@@ -580,8 +575,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1787259837.732302,
-    "ast_hash": "2acd46c3736b9a493d5ddd7e97fe176d",
+    "mtime": 1787312008.590264,
+    "ast_hash": "136c661f76a7a79635978b8ee40884e7",
     "semantic_hash": ""
   },
   "instructions/git-repo-link.txt": {
@@ -694,16 +689,6 @@
     "ast_hash": "1958dddc7f73a4175961a7841ba0baed",
     "semantic_hash": ""
   },
-  "CLOSED_NETWORK_MIGRATION.md": {
-    "mtime": 1787259870.3046112,
-    "ast_hash": "107774df3c624b98bdb13311cebcbb5b",
-    "semantic_hash": ""
-  },
-  "DATABASE.md": {
-    "mtime": 1787128834.1574407,
-    "ast_hash": "7c88da88a342fa07c6f97e59a0a786de",
-    "semantic_hash": ""
-  },
   "backend/docker-entrypoint.sh": {
     "mtime": 1787256165.5760868,
     "ast_hash": "f8cb68f2cd05af69bdb022f101211903",
@@ -730,13 +715,83 @@
     "semantic_hash": ""
   },
   ".gitlab-ci.yml": {
-    "mtime": 1787256334.2441971,
-    "ast_hash": "af4b88548311209da11c320248ea6d95",
+    "mtime": 1787303692.258451,
+    "ast_hash": "83b7a3d79afd125d4344154facafd67e",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
     "mtime": 1787256221.9302864,
     "ast_hash": "e8532b75366156e2890ed382df561ba9",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/__init__.py": {
+    "mtime": 1787303548.3182933,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/conftest.py": {
+    "mtime": 1787303807.3629198,
+    "ast_hash": "5c05f29284223422e7e47b5280f661f5",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/test_audit_log_repository_db.py": {
+    "mtime": 1787303674.443095,
+    "ast_hash": "1f6bd6ea68b3caa26fd2d37094cd985a",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/test_grant_repository_db.py": {
+    "mtime": 1787303855.979658,
+    "ast_hash": "4c4ee0849305f442062142e4f3b3cef1",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/test_migration_smoke.py": {
+    "mtime": 1787303820.9298398,
+    "ast_hash": "8aba5faf697f594468af740b8d8698ab",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/test_resource_repository_db.py": {
+    "mtime": 1787303620.4231744,
+    "ast_hash": "2a32f5e62bc5e173ec06fcc42241ebda",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/test_restriction_repository_db.py": {
+    "mtime": 1787303649.219488,
+    "ast_hash": "3f427364c191c599e4a60cc1437d0b89",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/test_system_role_repository_db.py": {
+    "mtime": 1787303664.079421,
+    "ast_hash": "bf183deb205de0d5b25d2b8666c3dc5f",
+    "semantic_hash": ""
+  },
+  "backend/tests/db/test_team_repository_db.py": {
+    "mtime": 1787303656.507641,
+    "ast_hash": "dab7af5d9e5f823ee77e842769ebdd6b",
+    "semantic_hash": ""
+  },
+  "docs/CI_CD_SETUP.md": {
+    "mtime": 1787299813.7708871,
+    "ast_hash": "e65b834a18436aefc56d6292364e2454",
+    "semantic_hash": ""
+  },
+  "docs/DATABASE.md": {
+    "mtime": 1787304005.9808288,
+    "ast_hash": "11ac9dce762f0eda0dfa992914971f80",
+    "semantic_hash": ""
+  },
+  "docs/PLAN.md": {
+    "mtime": 1787312034.2728965,
+    "ast_hash": "af2d3734d785011932b9c69e2bdfec7b",
+    "semantic_hash": ""
+  },
+  "docs/migration/CLOSED_NETWORK_MIGRATION.md": {
+    "mtime": 1787311979.9600549,
+    "ast_hash": "b02b245ab1c023c8c6f502d037d445f2",
+    "semantic_hash": ""
+  },
+  "docs/migration/OPENSHIFT_MIGRATION.md": {
+    "mtime": 1787311970.184957,
+    "ast_hash": "b4da05cd1d2f43c3c22ecb303e9745de",
     "semantic_hash": ""
   }
 }

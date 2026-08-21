@@ -104,5 +104,15 @@
   "102": "docker-entrypoint.sh",
   "103": "EntityRepository",
   "104": "TokenValidator",
-  "105": "models.py"
+  "105": "TokenValidator",
+  "106": "test_catalog.py",
+  "107": ".can_manage",
+  "108": "ConflictError",
+  "109": "get_my_access",
+  "110": "AdfsAuthMockTokenIssuer",
+  "111": "Database Reference — Permissions Server",
+  "112": "env.py",
+  "113": "CI/CD Setup — Remaining Manual Step",
+  "114": "README.md",
+  "115": "Quick start (always DB/Postgres mode)"
 }
