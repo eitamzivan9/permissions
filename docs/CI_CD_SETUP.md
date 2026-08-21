@@ -1,11 +1,20 @@
-# CI/CD Setup — Remaining Manual Step
+# CI/CD Setup
 
-`.gitlab-ci.yml` (repo root) is already written, committed, and pushed on the `ci-cd`
-branch. It defines two jobs: `backend-tests` (installs the backend in a venv, runs
-`pytest -v`) and `frontend-checks` (`npm ci`, lint, build).
+`.gitlab-ci.yml` (repo root) is written, committed, and pushed on the `ci-cd` branch. It
+defines three jobs: `backend-tests` and `db-tests` (both install the backend in a venv;
+`backend-tests` runs the hermetic `pytest -v`, `db-tests` runs `pytest tests/db -v`
+against a `postgres:17.7` service container) and `frontend-checks` (`npm ci`, lint,
+build).
 
-One manual, one-time step is still needed before `backend-tests` can succeed on a real
-GitLab runner — everything else is done.
+**Confirmed done, 2026-08-21**: the manual Token Access step below has been completed —
+verified directly from a real pipeline run
+(`gitlab.com/eitamzivan9/premissions/-/pipelines`, `ci-cd` branch, commit `02610bca`):
+`db-tests`' log shows `pip install -e ".[dev]"` successfully cloning `adfs-auth` via
+`CI_JOB_TOKEN` (`Cloning https://gitlab-ci-token:****@gitlab.com/eitamzivan9/adfs-auth.git`
+→ `Resolved ... to commit 791e3d2`) and all three jobs passing. Nothing in
+`.gitlab-ci.yml` is branch-specific, so this holds after merging `ci-cd` into `main`
+too — kept below as a reference for what the setting is and how to re-verify it if it
+ever needs redoing (e.g. after rotating/regenerating access on the `adfs-auth` side).
 
 ## Why it's needed
 
@@ -41,8 +50,8 @@ grant `premissions` access.
 
 ## After this works
 
-- Merge the `ci-cd` branch into `main` so the pipeline runs on every future push, not
-  just this branch.
-- Longer-term, per `CLOSED_NETWORK_MIGRATION.md`: publish `adfs-auth` as a proper
-  versioned package to an internal/public index and drop the `file://`/git-URL
+- Merging the `ci-cd` branch into `main` is safe — confirmed above, the pipeline isn't
+  branch-scoped.
+- Longer-term, per `migration/CLOSED_NETWORK_MIGRATION.md`: publish `adfs-auth` as a
+  proper versioned package to an internal/public index and drop the `file://`/git-URL
   workaround entirely — this setup is a stopgap, not the intended end state.
