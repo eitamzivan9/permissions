@@ -1,7 +1,7 @@
 # Graph Report - Premissions  (2026-08-21)
 
 ## Corpus Check
-- 152 files · ~58,453 words
+- 152 files · ~58,533 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8ee185be`
+- Built from commit: `a64e88ef`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -474,7 +474,7 @@ Nodes (5): _do_run_migrations(), get_url(), run_migrations_offline(), run_migrat
 
 ### Community 113 - "CI/CD Setup — Remaining Manual Step"
 Cohesion: 0.33
-Nodes (5): After this works, CI/CD Setup — Remaining Manual Step, How to verify it worked, Steps, Why it's needed
+Nodes (5): After this works, CI/CD Setup, How to verify it worked, Steps, Why it's needed
 
 ### Community 115 - "Quick start (always DB/Postgres mode)"
 Cohesion: 0.50
@@ -485,7 +485,7 @@ Nodes (4): Backend, Frontend, Quick start (always DB/Postgres mode), Try it
   frontend/public/icons.svg · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **160 isolated node(s):** `Stack`, `Prerequisites`, `Backend`, `Frontend`, `Try it` (+155 more)
+- **160 isolated node(s):** `Why it's needed`, `Steps`, `How to verify it worked`, `After this works`, `Stack` (+155 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
