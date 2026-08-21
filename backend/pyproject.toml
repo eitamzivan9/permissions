@@ -27,17 +27,24 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "db: requires PERMISSIONS_TEST_DATABASE_URL and a real Postgres instance; skipped otherwise (see tests/db/conftest.py, DATABASE.md)",
+]
 
 [tool.coverage.run]
 source = ["permissions_server"]
 # These files only execute meaningfully against a real Postgres connection
 # (actual SQL execution, the ltree TypeDecorator's bind/result processors,
 # asyncpg engine/session construction) — tests/conftest.py deliberately keeps
-# the suite hermetic/in-memory (PERMISSIONS_DATABASE_URL force-unset), so
-# there is no way to exercise these lines without a live database. Covered
-# instead by the db-migration-smoke CI job's `alembic upgrade head` against a
-# real Postgres service container (see CI plan) plus manual DB-mode testing
-# (CLAUDE.md's "Running the app" section) — not by this hermetic suite.
+# the *hermetic* suite (this coverage gate) in-memory (PERMISSIONS_DATABASE_URL
+# force-unset), so there is no way to exercise these lines under that gate.
+# They ARE covered, just not by this gate: tests/db/ (PERMISSIONS_TEST_DATABASE_URL,
+# a separate opt-in tier — see DATABASE.md's "DB-backed test tier") runs
+# `alembic upgrade head` and every SQLAlchemy repository against a real
+# Postgres. Kept out of `omit`'s reasoning above regardless — folding tests/db
+# into this 100%-fail_under gate would make the hermetic suite non-hermetic
+# (it would require Postgres to pass `pytest --cov`), which is the exact
+# thing tests/conftest.py's force-unset exists to prevent.
 omit = [
     "*/infrastructure/repositories/sqlalchemy_*.py",
     "*/infrastructure/repositories/_pagination.py",
