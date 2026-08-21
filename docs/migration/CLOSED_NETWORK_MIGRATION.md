@@ -8,6 +8,13 @@ move: what to change and how, what has to be installed/available in the closed
 network, and everything the codebase doesn't yet handle that you'll need to decide or
 build before this is production-ready there.
 
+**This document covers the app's dependencies** (Postgres, ADFS, packages, CORS,
+secrets) — a separate concern from **how the app gets deployed and run**, which the
+target platform is now known to be: **OpenShift**, inside this same closed network. See
+`OPENSHIFT_MIGRATION.md` (same folder) for that half — containers, health checks,
+Deployments/Services/Routes, scaling. Read this document first; that one assumes the
+groundwork here is done.
+
 Confirmed so far (recorded here so this doesn't drift from what was actually decided):
 an **internal package mirror** exists for both Python and Node — you don't need to
 vendor wheels/tarballs by hand. The closed-network Postgres is **version 17.7**
@@ -47,6 +54,14 @@ Full schema reference: **`DATABASE.md`**. Summary of what changes:
 - **`backend/tests/conftest.py`** force-unsets `PERMISSIONS_DATABASE_URL` already, so
   the test suite stays hermetic (in-memory) regardless of which network it runs on —
   no change needed there.
+- **The DB-backed test tier (`backend/tests/db/`, see `DATABASE.md`) needs its own
+  Postgres, same as any other environment.** It's keyed off
+  `PERMISSIONS_TEST_DATABASE_URL`, separate from the app's own
+  `PERMISSIONS_DATABASE_URL` — point it at a scratch database on the closed-network
+  Postgres instance (never the real one; this tier `TRUNCATE`s every app table before
+  each test) if you want to run `pytest tests/db` there directly. If CI in the closed
+  network still runs this tier as a job (see "Packages" below for what that job itself
+  needs), it provisions its own service-container Postgres and this doesn't apply.
 
 ## 2. Packages — what has to be available in the closed network
 
@@ -97,6 +112,15 @@ vendoring files:
   verify against what's actually mirrored.
 - **PostgreSQL 17.7 server itself** — provisioned by whoever manages the closed-network
   infra, not something `pip`/`npm` install; see `DATABASE.md`.
+- **Whatever CI system replaces `gitlab.com` in the closed network** (this repo's
+  `.gitlab-ci.yml` targets `gitlab.com` today, which the closed network can't reach at
+  all — a separate decision from everything else in this section) needs the
+  `postgres:17.7` container image available from that network's own container registry
+  mirror, not just the Python/Node package mirrors above — the `db-tests` CI job
+  (`backend/tests/db/`, see `DATABASE.md`) provisions Postgres as a CI service container
+  from that image. This is the same "confirm it's actually mirrored, don't assume"
+  caveat as everything else in this section, just for container images instead of
+  packages.
 
 ## 3. Auth — the biggest real gap, not just a config swap
 
@@ -226,7 +250,10 @@ infra/process decision, not something the codebase can default.
   entire reason this architecture exists. If a closed-network change ever seems to
   require touching `domain/` or `application/`, stop and reconsider; it almost
   certainly means the change is leaking through the wrong layer.
-- **Tests stay hermetic** either way — `conftest.py` always forces in-memory repos.
+- **The default test suite stays hermetic** either way — `tests/conftest.py` always
+  forces in-memory repos for `tests/unit`/`tests/integration`. The opt-in DB-backed tier
+  (`tests/db/`, see "1. Database" above and `DATABASE.md`) is the one exception, and only
+  runs at all when `PERMISSIONS_TEST_DATABASE_URL` is explicitly set.
 
 ## 7. Verification checklist for the move
 

@@ -10,14 +10,17 @@ resource feature data, never a users table. Two responsibilities:
 2. `/external/v1/my-access` — an API other internal apps call (forwarding the
    end-user's ADFS JWT) to find out which maps a user can reach.
 
-See [`PLAN.md`](PLAN.md) for the full architecture, data model, and API reference, and
-[`CLAUDE.md`](CLAUDE.md) for the durable design rules (SOLID, hexagonal boundaries,
-permission model, delegation rule) that must not silently drift. See
-[`DATABASE.md`](DATABASE.md) for the full Postgres schema reference (tables, columns,
-keys, how to start the DB), and [`CLOSED_NETWORK_MIGRATION.md`](CLOSED_NETWORK_MIGRATION.md)
-for what changes when this moves from the open network it's being built on to the
-organization's closed network (different Postgres, real ADFS, offline package
-sourcing).
+See [`docs/PLAN.md`](docs/PLAN.md) for the full architecture, data model, and API
+reference, and [`CLAUDE.md`](CLAUDE.md) for the durable design rules (SOLID, hexagonal
+boundaries, permission model, delegation rule) that must not silently drift. See
+[`docs/DATABASE.md`](docs/DATABASE.md) for the full Postgres schema reference (tables,
+columns, keys, how to start the DB, the DB-backed test tier), and
+[`docs/migration/`](docs/migration/) for what changes when this moves from the open
+network it's being built on to the organization's closed network — split into
+[`CLOSED_NETWORK_MIGRATION.md`](docs/migration/CLOSED_NETWORK_MIGRATION.md) (different
+Postgres, real ADFS, offline package sourcing) and
+[`OPENSHIFT_MIGRATION.md`](docs/migration/OPENSHIFT_MIGRATION.md) (deploying and running
+the app on OpenShift within that closed network).
 
 ## Stack
 
@@ -156,14 +159,21 @@ excludes the SQLAlchemy repository files and a couple of other DB-execution-only
 modules, since those need a real Postgres connection the hermetic suite deliberately
 doesn't have.
 
+A third, opt-in tier, `backend/tests/db/`, covers exactly those omitted files against a
+real Postgres — keyed off `PERMISSIONS_TEST_DATABASE_URL`, skipped (not failed) when
+that's unset, so it never affects the command above. See `DATABASE.md`'s "DB-backed
+test tier" section for how to run it (never point it at your real dev database — it
+truncates every app table between tests).
+
 ## CI
 
-`.gitlab-ci.yml` runs `backend-tests` (the same `pytest` above) and `frontend-checks`
-(`npm ci && npm run lint && npm run build`) as independent, path-scoped jobs. Both jobs
-rewrite `backend/pyproject.toml`'s local-path `adfs-auth` dependency to its GitLab
-remote at CI time only (never touching the committed file) — see
-`CLOSED_NETWORK_MIGRATION.md` for why that dependency needs special handling off this
-machine.
+`.gitlab-ci.yml` runs three independent, path-scoped jobs: `backend-tests` (the
+hermetic `pytest` above), `db-tests` (`pytest tests/db` against a `postgres:17.7`
+service container), and `frontend-checks` (`npm ci && npm run lint && npm run build`).
+`backend-tests` and `db-tests` both rewrite `backend/pyproject.toml`'s local-path
+`adfs-auth` dependency to its GitLab remote at CI time only (never touching the
+committed file) — see `CLOSED_NETWORK_MIGRATION.md` for why that dependency needs
+special handling off this machine.
 
 ## Configuration
 
@@ -185,12 +195,23 @@ Backend settings (`backend/src/permissions_server/config.py`), all under the
 ```
 Premissions/
 ├── CLAUDE.md           # durable architecture/design rules — read first
-├── PLAN.md             # full implementation plan, data model, API reference
+├── docs/
+│   ├── PLAN.md                    # full implementation plan, data model, API reference
+│   ├── DATABASE.md                # Postgres schema reference + DB-backed test tier
+│   ├── CI_CD_SETUP.md             # one-time manual GitLab CI setup step
+│   └── migration/
+│       ├── CLOSED_NETWORK_MIGRATION.md  # what changes moving to the closed network
+│       └── OPENSHIFT_MIGRATION.md       # deploying/running the app on OpenShift there
 ├── docker-compose.yml  # Postgres + backend + frontend, containerized
-├── .gitlab-ci.yml      # backend-tests + frontend-checks CI jobs
+├── .gitlab-ci.yml      # backend-tests + db-tests + frontend-checks CI jobs
 ├── backend/            # FastAPI app (domain / application / infrastructure / api)
 └── frontend/           # React + TS + Tailwind SPA
 ```
+
+`CLAUDE.md` and this `README.md` stay at the repo root deliberately, not in `docs/`:
+`CLAUDE.md` is auto-loaded by Claude Code specifically from the project root, and
+`README.md` is what GitHub/GitLab render automatically on the repo's landing page —
+moving either would break that.
 
 Backend follows hexagonal architecture: `domain/` (entities + ports, no framework
 imports) → `application/` (use-case services) → `infrastructure/` (in-memory or

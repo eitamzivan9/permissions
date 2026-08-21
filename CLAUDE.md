@@ -8,13 +8,17 @@ change access for people below them (or for Teams), (2) `/external/v1/my-access`
 API other internal apps call (forwarding the end-user's ADFS JWT) to get the maps a
 user can reach.
 
-See `PLAN.md` at the project root for the full implementation plan (architecture, data
-model, file guide, API endpoint list, build sequence). This file is the durable,
-always-loaded summary of the rules that must not silently drift. See `DATABASE.md` for
-the full Postgres schema reference and `CLOSED_NETWORK_MIGRATION.md` for what changes
-when this moves from the current open network to the organization's closed network
-(different Postgres instance, real ADFS, offline/mirrored package sourcing) — read
-that before touching anything auth- or database-connection-related for that move.
+See `docs/PLAN.md` for the full implementation plan (architecture, data model, file
+guide, API endpoint list, build sequence). This file (`CLAUDE.md`, kept at the project
+root — see `README.md`'s "Project layout" for why it and `README.md` are the two docs
+not under `docs/`) is the durable, always-loaded summary of the rules that must not
+silently drift. See `docs/DATABASE.md` for the full Postgres schema reference and
+`docs/migration/CLOSED_NETWORK_MIGRATION.md` for what changes when this moves from the
+current open network to the organization's closed network (different Postgres instance,
+real ADFS, offline/mirrored package sourcing) — read that before touching anything
+auth- or database-connection-related for that move.
+`docs/migration/OPENSHIFT_MIGRATION.md` covers the separate concern of actually
+deploying/running the app on OpenShift once inside that closed network.
 
 ## Core philosophy: SOLID, and no duplicated code
 
@@ -431,19 +435,33 @@ SQLAlchemy repository files, `infrastructure/db/session.py`/`types.py`, and
 `infrastructure/repositories/_pagination.py` explicitly, since those only execute
 meaningfully against a real Postgres connection the hermetic suite deliberately doesn't
 have. Don't chase 100% by weakening that boundary (e.g. flipping conftest's DB-URL
-force-unset) — extend the `omit` list with the same reasoning instead, or add a real
-DB-backed test tier if that boundary ever needs to move. Table-style coverage (many
-`Role` × restricted/unrestricted × personal-workspace × system-role combinations) lives
-as `pytest.mark.parametrize` cases colocated in the existing `tests/unit`/
-`tests/integration` files — extend those, don't fork parallel suites.
+force-unset) — extend the `omit` list with the same reasoning instead. Table-style
+coverage (many `Role` × restricted/unrestricted × personal-workspace × system-role
+combinations) lives as `pytest.mark.parametrize` cases colocated in the existing
+`tests/unit`/`tests/integration` files — extend those, don't fork parallel suites.
 
-`.gitlab-ci.yml` runs two independent jobs (path-scoped via `rules: changes`, so an
+**A third, opt-in DB-backed test tier now exists** (`backend/tests/db/`, 2026-08-21) —
+the "add a real DB-backed test tier" option this section used to leave open has been
+taken. It runs the SQLAlchemy repositories, `infrastructure/db/session.py`/`types.py`,
+and `infrastructure/repositories/_pagination.py` against a real Postgres, keyed off
+`PERMISSIONS_TEST_DATABASE_URL` (never `PERMISSIONS_DATABASE_URL`, which stays force-
+unset for the hermetic tier above). Skipped, not failed, when that variable isn't set,
+so the hermetic `pytest --cov=permissions_server` run above is completely unaffected —
+still 100% coverage, still zero Postgres dependency. Full details (how to point it at a
+scratch database safely, the async-engine-per-test-function gotcha, why it isn't folded
+into the `fail_under = 100` gate) live in `DATABASE.md`'s "DB-backed test tier" section
+— read that before extending `tests/db/`, not just this summary.
+
+`.gitlab-ci.yml` runs three independent jobs (path-scoped via `rules: changes`, so an
 unrelated frontend-only change doesn't re-run backend tests and vice versa):
-`backend-tests` (the same `pytest` above, in a fresh `python:3.11` venv) and
-`frontend-checks` (`npm ci && npm run lint && npm run build`, i.e. `oxlint` +
-`tsc -b`-via-`vite build`). Both rewrite `adfs-auth`'s dependency line the same way the
-Dockerfile does (see "Running the app" above) — CI-only, never touching the committed
-`pyproject.toml`.
+`backend-tests` (the hermetic `pytest` above, in a fresh `python:3.11` venv),
+`db-tests` (`pytest tests/db`, same venv setup, against a `postgres:17.7` GitLab CI
+service container — this is the literal `db-migration-smoke`-style job an old coverage
+comment referenced before this tier existed), and `frontend-checks`
+(`npm ci && npm run lint && npm run build`, i.e. `oxlint` + `tsc -b`-via-`vite build`).
+`backend-tests` and `db-tests` both rewrite `adfs-auth`'s dependency line the same way
+the Dockerfile does (see "Running the app" above) — CI-only, never touching the
+committed `pyproject.toml`.
 
 ## Known, deliberate departures from the reference design docs (do not "fix" — ask first)
 

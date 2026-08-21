@@ -252,6 +252,62 @@ an already-current database (no-op). When you add new tables/columns, write a ne
 migration under `backend/alembic/versions/`; never hand-edit `0001`/`0002` after
 they've been applied anywhere.
 
+## DB-backed test tier
+
+`backend/tests/db/` is a third test tier, alongside `tests/unit` and `tests/integration`
+(both always hermetic/in-memory — see `CLAUDE.md`'s "Tests and CI"). It runs the
+SQLAlchemy repositories, `infrastructure/db/session.py`, `infrastructure/db/types.py`
+(the `ltree` `TypeDecorator`), and `infrastructure/repositories/_pagination.py` against a
+real Postgres — exactly the files `backend/pyproject.toml`'s coverage `omit` list
+excludes from the hermetic 100%-coverage gate, because none of them can execute
+meaningfully without one.
+
+- **Opt-in, keyed off a separate env var.** `PERMISSIONS_TEST_DATABASE_URL` —
+  deliberately not `PERMISSIONS_DATABASE_URL`, which `tests/conftest.py` force-unsets for
+  every other test. When `PERMISSIONS_TEST_DATABASE_URL` isn't set, everything in
+  `tests/db/` is *skipped*, not failed, so a plain `pytest --cov=permissions_server` still
+  passes at 100% on a machine with no Postgres reachable at all — this tier is additive,
+  it never gates the hermetic suite.
+- **Point it at a disposable/scratch database — never your real dev one.**
+  `tests/db/conftest.py`'s `sessionmaker` fixture `TRUNCATE`s every app table before each
+  test to keep tests isolated from each other. Running this tier against the same
+  database `backend/.env`'s `PERMISSIONS_DATABASE_URL` points at will wipe your seeded
+  dev data. Use a separate database on the same instance (e.g. `permissions_test`) or a
+  throwaway container.
+- **It also doubles as the migration smoke test.** Once per test session, it runs the
+  real `alembic upgrade head` as a subprocess (`tests/db/conftest.py::
+  run_alembic_upgrade_head`, retried for a few seconds in case the target Postgres is
+  still starting up) against `PERMISSIONS_TEST_DATABASE_URL` — the same command
+  `docker-entrypoint.sh` and this file's manual setup both use.
+  `tests/db/test_migration_smoke.py` then asserts the `ltree` extension and all 7 tables
+  exist, and that running the upgrade a second time is a no-op (idempotency).
+- **Run it locally**, e.g. against a throwaway container so it can never touch real data:
+  ```bash
+  docker run --rm -d --name permissions_test_pg -p 5433:5432 \
+    -e POSTGRES_USER=permissions_app -e POSTGRES_PASSWORD=test_only -e POSTGRES_DB=permissions \
+    postgres:17.7
+
+  cd backend
+  PERMISSIONS_TEST_DATABASE_URL=postgresql+asyncpg://permissions_app:test_only@localhost:5433/permissions \
+    .venv/Scripts/python.exe -m pytest tests/db -v
+
+  docker stop permissions_test_pg   # --rm cleans the container up on stop
+  ```
+- **In CI**: `.gitlab-ci.yml`'s `db-tests` job runs the same `pytest tests/db` against a
+  `postgres:17.7` GitLab CI service container — see `CLAUDE.md`'s "Tests and CI".
+- **Not folded into the `fail_under = 100` gate.** Doing so would make the hermetic suite
+  require a live Postgres to pass `pytest --cov`, defeating the entire reason
+  `tests/conftest.py` force-unsets `PERMISSIONS_DATABASE_URL` in the first place. This
+  tier is separate functional-correctness coverage of the omitted files, not a coverage
+  number.
+- **If you extend this tier, keep the `sessionmaker` fixture function-scoped.** An async
+  SQLAlchemy engine's connection pool is bound to the event loop it was created on, and
+  pytest-asyncio gives each test function its own event loop by default. A
+  session-scoped engine fixture works for exactly one test, then every test after it
+  fails with an asyncpg "another operation is in progress" error — building a fresh
+  engine per test (cheap; nothing else here holds a connection open across tests) is what
+  actually avoids this.
+
 ## Verifying the connection independent of the app
 
 ```bash

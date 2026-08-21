@@ -3,10 +3,12 @@
 See `CLAUDE.md` at the project root for the durable, always-loaded rules (SOLID/
 no-duplication requirement, architecture boundaries, permission model, delegation
 rule). This file is the detailed design and current-state file guide behind those
-rules — read it before starting or resuming implementation. See `DATABASE.md` for the
-full Postgres schema reference and `CLOSED_NETWORK_MIGRATION.md` for the concrete
-open-network → closed-network move (new Postgres instance, real ADFS wiring, offline
-package sourcing) referenced throughout the "Deployment context" section below.
+rules — read it before starting or resuming implementation. See `DATABASE.md` (same
+`docs/` folder as this file) for the full Postgres schema reference,
+`migration/CLOSED_NETWORK_MIGRATION.md` for the concrete open-network → closed-network
+move (new Postgres instance, real ADFS wiring, offline package sourcing) referenced
+throughout the "Deployment context" section below, and `migration/OPENSHIFT_MIGRATION.md`
+for deploying/running the app on OpenShift once inside that closed network.
 
 ## Context
 
@@ -522,6 +524,21 @@ with the git-sourced `adfs-auth`; Docker Desktop wasn't installed on this machin
 containers themselves weren't run, only their Dockerfiles/entrypoint logic reviewed and
 the underlying commands verified directly).
 
+**DB-backed test tier** (2026-08-21): `backend/tests/db/` added as a third, opt-in test
+tier alongside the hermetic `tests/unit`/`tests/integration` — runs the SQLAlchemy
+repositories, `infrastructure/db/session.py`/`types.py`, and
+`infrastructure/repositories/_pagination.py` against a real Postgres, keyed off
+`PERMISSIONS_TEST_DATABASE_URL` (skipped, not failed, when unset, so the hermetic
+`pytest --cov` run is unaffected — still 197/197 passing, still 100% coverage). Also
+runs the real `alembic upgrade head` once per session as a migration smoke test. New
+`.gitlab-ci.yml` job `db-tests` runs it against a `postgres:17.7` CI service container,
+same `adfs-auth` git-source rewrite as `backend-tests`. Full design (why the
+`sessionmaker` fixture must be function-scoped, not session-scoped — async engines are
+bound to the event loop that created them — and how to point it at a scratch database
+safely) lives in `DATABASE.md`'s "DB-backed test tier" section, not duplicated here.
+This closes out the `omit` list's old comment in `backend/pyproject.toml`, which had
+referenced a "db-migration-smoke CI job" that didn't actually exist yet at the time.
+
 **Phase 2 auth** (later, once inside the org network, not built yet): wire the
 already-built `adfs-auth` library's real OIDC validator behind
 `domain/ports/token_validator.py`/`token_issuer.py`; also still deferred: real
@@ -578,11 +595,24 @@ walkthrough against real ADFS once that's wired in.
    git-sourced `adfs-auth` install genuinely works, not just the sed pattern in
    isolation. Also ran `frontend-checks`' exact sequence (`npm ci && npm run lint &&
    npm run build`) for real.
-5. Docker itself: **not run** — Docker Desktop isn't installed on this machine.
-   `docker-compose.yml`/both `Dockerfile`s/`docker-entrypoint.sh` were reviewed instead,
-   and every command they contain (the `adfs-auth` sed rewrite, `alembic upgrade head`,
-   `scripts/seed.py`, `npm ci`) was verified directly on the host. `docker compose up`
-   itself is the one piece of this round still unverified end-to-end.
+5. Docker itself, **superseded 2026-08-21 — now run end-to-end**: `docker compose up
+   --build` (Docker Desktop installed since this round was originally written) brought
+   up `db`/`backend`/`frontend` together, `docker-entrypoint.sh`'s `alembic upgrade
+   head` + `scripts/seed.py` ran automatically and matched the expected row counts,
+   and a real browser session (mock-login, catalog load with personal-workspace
+   pinning, tree expand, info panel's Delete-disabled-when-non-empty state, `/api/*`
+   proxy round-trip) hit the containerized stack directly — zero console errors.
+   `docker compose down` cleanly removed all 3 containers + the network afterward.
+
+**DB-backed test tier (2026-08-21, done, verified):**
+1. `pytest tests/db -v` against a disposable `postgres:17.7` container — 37/37 passing
+   (migration smoke test, all 6 SQLAlchemy repositories, `_pagination.paginate`).
+2. `pytest --cov=permissions_server` (the default hermetic run, `PERMISSIONS_TEST_
+   DATABASE_URL` unset) re-run afterward to confirm zero regression: still 197/197
+   passing, still 100% coverage — the new tier's 37 tests show as skipped, not run,
+   confirming it never touches the hermetic gate.
+3. The disposable Postgres container was stopped and removed after verification —
+   nothing left running.
 
 **Phase 2 auth (once inside the org network, not yet applicable):** repeat the
 manual walkthrough with real ADFS wired in via `adfs-auth`.
