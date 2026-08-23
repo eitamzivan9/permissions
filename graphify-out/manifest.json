@@ -579,16 +579,6 @@
     "ast_hash": "fd1750cea15e37f495fc9fb0c002afc1",
     "semantic_hash": ""
   },
-  "instructions/git-repo-link.txt": {
-    "mtime": 1784650754.6013234,
-    "ast_hash": "f93ec215476a144ed8077ad17eab37fb",
-    "semantic_hash": ""
-  },
-  "instructions/PERMISSION SYSTEM DESIGN.pdf": {
-    "mtime": 1784650773.8269126,
-    "ast_hash": "d11197e15898f35515562f0bcea566ed",
-    "semantic_hash": ""
-  },
   "backend/alembic/versions/0002_owner_restrictions.py": {
     "mtime": 1785168297.1973333,
     "ast_hash": "83b93a6ab4edd55365efd9fce57220e6",

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Permissions Server — Test Suite Reference</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #172B4D; max-width: 1100px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 24px; border-bottom: 2px solid #DFE1E6; padding-bottom: 8px; }
+  h2 { font-size: 18px; margin-top: 40px; }
+  p.meta { color: #5E6C84; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 24px 0; }
+  th, td { border: 1px solid #DFE1E6; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background-color: #F4F5F7; font-weight: bold; }
+  td code, th code { background-color: #F4F5F7; padding: 1px 4px; border-radius: 3px; font-family: "Courier New", monospace; font-size: 13px; }
+  td.num { text-align: center; }
+  p.subtotal { font-weight: bold; color: #5E6C84; }
+</style>
+</head>
+<body>
+
+<h1>Permissions Server — Test Suite Reference</h1>
+<p class="meta">Backend test suite: 223 tests across 30 files, three tiers. One row per test file below.</p>
+<p class="meta"><strong>Hermetic suite</strong> (<code>pytest --cov=permissions_server</code> from <code>backend/</code>, unit + integration, always in-memory, 100% coverage enforced in CI) = Unit + Integration tables below.<br>
+<strong>DB tier</strong> (<code>pytest tests/db</code>, opt-in, real Postgres via <code>PERMISSIONS_TEST_DATABASE_URL</code>, skipped otherwise, own CI job) = DB table below.</p>
+
+<h2>Unit tests — <code>backend/tests/unit/</code></h2>
+<p class="meta">Service and domain logic against in-memory repositories. No HTTP layer.</p>
+<table>
+<tr><th>Test File</th><th>#</th><th>What It Verifies</th><th>Key Scenarios</th></tr>
+<tr><td><code>test_access_resolver.py</code></td><td class="num">29</td><td><code>AccessResolver</code> — the core effective-role resolution engine</td><td>Nearest-ancestor-wins inheritance; layer overrides map default; team vs. direct grant rank; SUPER_EDITOR/SUPER_VIEWER bypass (incl. personal-workspace carve-out); <code>inherits_from_parent=False</code> walls off grants <em>and</em> restrictions; restriction gate overrides grants; restriction tie-break is rank not recency; <code>nearest_admins()</code>; <code>path_to_root()</code> cycle safety</td></tr>
+<tr><td><code>test_access_transparency_service.py</code></td><td class="num">9</td><td><code>AccessTransparencyService</code> — <code>explain_access</code>, <code>check_access</code>, <code>list_admins</code></td><td>Winning source flagged <code>is_effective</code>; system-role source shown; <code>check_access</code> Manager-gated; admin display-name resolution (user/team/fallback-to-id)</td></tr>
+<tr><td><code>test_audit_service.py</code></td><td class="num">3</td><td><code>AuditService</code> append-only logging</td><td>Grant+revoke history for a resource; history for an actor; role-change logging</td></tr>
+<tr><td><code>test_auth_service.py</code></td><td class="num">4</td><td><code>AuthService</code> (mock ADFS issuer/validator + <code>UserDirectory</code>)</td><td>Login issues resolvable token; unknown-user login 404s; token for unknown subject rejected; user search by name/email</td></tr>
+<tr><td><code>test_catalog_service.py</code></td><td class="num">11</td><td><code>CatalogService</code> (<code>/catalog</code> logic)</td><td>Full tree with <code>None</code> roles; <code>can_fetch</code> bubbles up from one descendant; search+subtree; personal-workspace pinning &amp; hiding-others rules; external-access filtering/totals</td></tr>
+<tr><td><code>test_entities.py</code></td><td class="num">11</td><td>Domain entities — resource hierarchy rules, <code>Role</code> rank, <code>Grantee</code> validation (pure, no I/O)</td><td>Legal parent/child pairs per type; only Workspace can root; <code>is_organizational()</code>; role ranking; Grantee id/type consistency</td></tr>
+<tr><td><code>test_in_memory_repositories.py</code></td><td class="num">4</td><td>In-memory repo edge cases not covered elsewhere</td><td>Restriction filtering by grantee; system-role revoke (named-only, no-op when none held)</td></tr>
+<tr><td><code>test_main_lifespan.py</code></td><td class="num">1</td><td>FastAPI <code>lifespan</code> DB/in-memory wiring</td><td>SQLAlchemy repos wired when <code>database_url</code> is set</td></tr>
+<tr><td><code>test_org_hierarchy_cycle_safety.py</code></td><td class="num">4</td><td>Mock org-hierarchy traversal cycle protection</td><td><code>is_manager_of</code>/<code>subordinates_of</code> terminate on a cycle instead of looping forever; still correct on real chains</td></tr>
+<tr><td><code>test_permission_grant_service.py</code></td><td class="num">24</td><td><code>PermissionGrantService</code> — <code>can_manage</code>, <code>grant</code>, <code>revoke</code>, delegation rule engine</td><td>Role-rank + org-chart combinations; team grantees skip org-chart check; personal-workspace bypass; self-revocation exception; audit on grant/role-change; <code>bootstrap_admin_grant</code></td></tr>
+<tr><td><code>test_resource_service.py</code></td><td class="num">4</td><td><code>ResourceService.delete()</code></td><td>Organizational (Workspace/Folder/Group) delete blocked with children, allowed when empty; Map/Layer cascade delete unconditionally</td></tr>
+<tr><td><code>test_restriction_service.py</code></td><td class="num">10</td><td><code>RestrictionService</code> — auto-whitelist + last-admin guard</td><td>First restriction auto-whitelists setting admin; no duplicate on self; revoke blocked if it would orphan a restricted resource with zero Admins; last restriction always removable</td></tr>
+</table>
+<p class="subtotal">Unit subtotal: 114</p>
+
+<h2>Integration tests — <code>backend/tests/integration/</code></h2>
+<p class="meta">Full HTTP request/response via FastAPI <code>TestClient</code>.</p>
+<table>
+<tr><th>Test File</th><th>#</th><th>What It Verifies</th><th>Key Scenarios</th></tr>
+<tr><td><code>test_auth_flow.py</code></td><td class="num">5</td><td>Login → <code>/auth/me</code> → protected-route auth</td><td>Round trip; unknown-user 404; missing/garbage token 401; mock-user login picker</td></tr>
+<tr><td><code>test_catalog.py</code></td><td class="num">4</td><td><code>GET /catalog</code></td><td>Auth required; full tree w/ <code>None</code> for ungranted user; seed/root user's bootstrap Admin; name search</td></tr>
+<tr><td><code>test_delete_resource.py</code></td><td class="num">8</td><td><code>DELETE /resources/{id}</code></td><td>Subtree delete cleans up grants/restrictions; 403 without Admin; 404 missing; 409 non-empty folder; subtree-only admin can delete only their branch</td></tr>
+<tr><td><code>test_external_access.py</code></td><td class="num">4</td><td><code>GET /external/v1/my-access</code></td><td>Auth required; filtering/totals; empty for ungranted; map reachable via single layer</td></tr>
+<tr><td><code>test_grants.py</code></td><td class="num">12</td><td>Grants router (<code>POST</code>/<code>DELETE /grants/...</code>)</td><td>Delegation across org branches; Manager can't grant Manager/Admin; team grants skip org-chart; personal-workspace bypass; layer override revert on delete; self-revocation without manage authority</td></tr>
+<tr><td><code>test_move.py</code></td><td class="num">9</td><td><code>PATCH /resources/{id}/move</code></td><td>Admin-at-source + Editor-at-destination required; invalid type pair / into-own-subtree / restricted-destination all rejected; 404s</td></tr>
+<tr><td><code>test_resources.py</code></td><td class="num">9</td><td><code>POST /resources</code>, <code>/resources/my-workspace</code>, <code>/resources/workspaces</code></td><td>Creator auto-granted Admin; Editor+ required at parent; <code>my-workspace</code> idempotent &amp; per-user; team-workspace creation is SUPER_EDITOR-only</td></tr>
+<tr><td><code>test_restrictions.py</code></td><td class="num">12</td><td><code>PUT</code>/<code>DELETE /restrictions/...</code></td><td>Auto-whitelist on first restriction; SUPER_EDITOR/SUPER_VIEWER bypass; Manager can't set; org-chart check (user vs. team); tie-break rank; last-admin-guard 409</td></tr>
+<tr><td><code>test_teams_and_transparency.py</code></td><td class="num">9</td><td>Teams, <code>my-access</code>/<code>check-access</code>, <code>list-admins</code>, audit endpoints</td><td>Team membership reaches grants; admins listed for an outsider; audit history access gated by Manager role or system role</td></tr>
+</table>
+<p class="subtotal">Integration subtotal: 72</p>
+
+<h2>DB tests — <code>backend/tests/db/</code></h2>
+<p class="meta">Opt-in tier, real Postgres (<code>PERMISSIONS_TEST_DATABASE_URL</code>), skipped otherwise. Exercises the SQLAlchemy repositories, <code>infrastructure/db/</code>, and Alembic migrations.</p>
+<table>
+<tr><th>Test File</th><th>#</th><th>What It Verifies</th><th>Key Scenarios</th></tr>
+<tr><td><code>test_audit_log_repository_db.py</code></td><td class="num">4</td><td>SQLAlchemy <code>AuditLogRepository</code></td><td>Append+list; newest-first ordering; actor filter; pagination</td></tr>
+<tr><td><code>test_grant_repository_db.py</code></td><td class="num">5</td><td>SQLAlchemy <code>PermissionGrantRepository</code></td><td>Upsert create-then-update; user+team coexistence; filtered list; single &amp; bulk delete</td></tr>
+<tr><td><code>test_migration_smoke.py</code></td><td class="num">3</td><td>Alembic migrations &amp; schema sanity</td><td><code>ltree</code> extension installed; all tables created; <code>upgrade head</code> is idempotent</td></tr>
+<tr><td><code>test_resource_repository_db.py</code></td><td class="num">11</td><td>SQLAlchemy <code>ResourceRepository</code> (<code>ltree</code> path column)</td><td>Path construction on create/child; cascade delete; move reattaches subtree; case-insensitive search+pagination; <code>pinned_id</code> sort; <code>inherits_from_parent</code> persistence; <code>find_workspace_by_owner</code></td></tr>
+<tr><td><code>test_restriction_repository_db.py</code></td><td class="num">5</td><td>SQLAlchemy <code>RestrictionRepository</code></td><td>Upsert create-then-update; multi-resource list; filtered list; single &amp; bulk delete</td></tr>
+<tr><td><code>test_system_role_repository_db.py</code></td><td class="num">4</td><td>SQLAlchemy <code>SystemRoleRepository</code></td><td>Grant+list; idempotent grant; both roles held independently; revoke</td></tr>
+<tr><td><code>test_team_repository_db.py</code></td><td class="num">5</td><td>SQLAlchemy <code>TeamRepository</code></td><td>Create/get; search-filtered list; membership add/list; idempotent add; remove</td></tr>
+</table>
+<p class="subtotal">DB subtotal: 37</p>
+
+<p><strong>Total: 223 tests</strong> (114 unit + 72 integration + 37 DB-tier).</p>
+
+</body>
+</html>
