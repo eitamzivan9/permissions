@@ -66,6 +66,7 @@ async def test_move_forbidden_without_admin_at_source(client):
     sub_token = await login_as(client, VP_SUBORDINATE)
     resp = await _move(client, sub_token, MAP_ID, DEST_FOLDER_ID)
     assert resp.status_code == 403
+    assert resp.json()["code"] == "move_requires_admin"
 
 
 async def test_move_forbidden_without_editor_at_destination(client):
@@ -76,6 +77,7 @@ async def test_move_forbidden_without_editor_at_destination(client):
     sub_token = await login_as(client, VP_SUBORDINATE)
     resp = await _move(client, sub_token, MAP_ID, DEST_FOLDER_ID)
     assert resp.status_code == 403
+    assert resp.json()["code"] == "move_destination_requires_editor"
 
 
 async def test_move_forbidden_with_no_access_at_all(client):
@@ -88,6 +90,9 @@ async def test_move_into_invalid_type_pair_is_conflict(client):
     root_token = await login_as(client, ROOT)
     resp = await _move(client, root_token, MAP_ID, "layer-roads-bike")
     assert resp.status_code == 409
+    body = resp.json()
+    assert body["code"] == "invalid_child_type"
+    assert body["params"] == {"child": "map", "parent": "layer"}
 
 
 async def test_move_into_own_subtree_is_conflict(client):
@@ -96,6 +101,7 @@ async def test_move_into_own_subtree_is_conflict(client):
     # moving f-environment under its own child f-hazards would be a cycle.
     resp = await _move(client, root_token, "f-environment", "f-hazards")
     assert resp.status_code == 409
+    assert resp.json()["code"] == "move_into_own_subtree"
 
 
 async def test_move_to_nonexistent_destination_is_404(client):

@@ -9,6 +9,8 @@ import {
   listTeams,
   setRestriction,
 } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
+import { ROLE_LABEL_KEYS } from "../i18n/labels";
 
 interface RestrictionsModalProps {
   resourceId: string;
@@ -27,6 +29,7 @@ export default function RestrictionsModal({
   onClose,
   onChanged,
 }: RestrictionsModalProps) {
+  const { t, describeError } = useLanguage();
   const [users, setUsers] = useState<MockUser[]>([]);
   // Full user directory, independent of `users` (which is scoped to whoever
   // the actor may manage/grant to). Grantee names must resolve regardless of
@@ -69,7 +72,7 @@ export default function RestrictionsModal({
         setSelectedGranteeId((current) => current || (fetchedUsers[0]?.id ?? ""));
       })
       .catch((error: unknown) => {
-        setLoadError(error instanceof Error ? error.message : "Failed to load restrictions.");
+        setLoadError(describeError(error, "restrictions.loadFailed"));
       })
       .finally(() => setIsLoading(false));
   }
@@ -97,11 +100,13 @@ export default function RestrictionsModal({
         granteeId: selectedGranteeId,
         role: selectedRole,
       });
-      setSuccessMessage(`Added ${selectedRole} to the whitelist.`);
+      setSuccessMessage(
+        t("restrictions.addSuccess", { role: t(ROLE_LABEL_KEYS[selectedRole]) }),
+      );
       onChanged();
       loadAll();
     } catch (error: unknown) {
-      setActionError(error instanceof Error ? error.message : "Failed to set restriction.");
+      setActionError(describeError(error, "restrictions.setFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -118,11 +123,11 @@ export default function RestrictionsModal({
         granteeId:
           (restriction.grantee_type === "user" ? restriction.user_id : restriction.team_id) ?? "",
       });
-      setSuccessMessage("Removed from the whitelist.");
+      setSuccessMessage(t("restrictions.removeSuccess"));
       onChanged();
       loadAll();
     } catch (error: unknown) {
-      setActionError(error instanceof Error ? error.message : "Failed to remove restriction.");
+      setActionError(describeError(error, "restrictions.removeFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -153,11 +158,9 @@ export default function RestrictionsModal({
       }
     }
     if (failures.length > 0) {
-      setActionError(
-        `Could not remove: ${failures.join(", ")} (at least one Admin entry must remain while others are whitelisted).`,
-      );
+      setActionError(t("restrictions.clearPartial", { names: failures.join(", ") }));
     } else {
-      setSuccessMessage("Cleared the whitelist — access here now falls back to ordinary grants.");
+      setSuccessMessage(t("restrictions.clearSuccess"));
     }
     onChanged();
     loadAll();
@@ -167,10 +170,14 @@ export default function RestrictionsModal({
   function granteeLabel(entry: Restriction | Grant): string {
     if (entry.grantee_type === "user") {
       const user = allUsers.find((candidate) => candidate.id === entry.user_id);
-      return user ? `${user.name} (${user.email})` : (entry.user_id ?? "unknown user");
+      return user
+        ? t("common.userOption", { name: user.name, email: user.email })
+        : (entry.user_id ?? t("common.unknownUser"));
     }
     const team = teams.find((candidate) => candidate.id === entry.team_id);
-    return team ? `Team: ${team.name}` : `Team: ${entry.team_id ?? "unknown"}`;
+    return t("common.teamLabel", {
+      name: team ? team.name : (entry.team_id ?? t("common.unknown")),
+    });
   }
 
   // Admins here today via an ordinary grant — shown only until the first
@@ -190,27 +197,26 @@ export default function RestrictionsModal({
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Restrictions (whitelist)</h3>
-            <p className="mt-0.5 truncate text-sm text-slate-500">{resourceName}</p>
+            <h3 className="text-base font-semibold text-slate-900">{t("restrictions.title")}</h3>
+            <p className="mt-0.5 truncate text-sm text-slate-500">
+              <bdi>{resourceName}</bdi>
+            </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             ✕
           </button>
         </div>
 
         <p className="mt-3 rounded-md bg-amber-50 p-2.5 text-xs text-amber-800">
-          Adding anyone here turns this resource (and everything below it) into a whitelist:
-          only grantees listed below keep access, even ones who currently have an Admin grant.
-          This overrides ordinary access grants for everyone except a system Super Editor or
-          Super Viewer.
+          {t("restrictions.warning")}
         </p>
 
-        {isLoading && <p className="mt-5 text-sm text-slate-500">Loading…</p>}
+        {isLoading && <p className="mt-5 text-sm text-slate-500">{`${t("common.loading")}…`}</p>}
         {loadError && (
           <p className="mt-5 rounded-md bg-red-50 p-3 text-sm text-red-700">{loadError}</p>
         )}
@@ -221,7 +227,7 @@ export default function RestrictionsModal({
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Currently whitelisted here
+                    {t("restrictions.current")}
                   </h4>
                   <button
                     type="button"
@@ -229,7 +235,7 @@ export default function RestrictionsModal({
                     disabled={isSubmitting}
                     className="text-xs font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Clear all
+                    {t("restrictions.clearAll")}
                   </button>
                 </div>
                 <ul className="mt-1.5 space-y-1.5">
@@ -238,16 +244,18 @@ export default function RestrictionsModal({
                       key={`${restriction.grantee_type}:${restriction.user_id ?? restriction.team_id}`}
                       className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm"
                     >
-                      <span className="truncate text-slate-700">{granteeLabel(restriction)}</span>
+                      <span className="truncate text-slate-700" dir="auto">
+                        {granteeLabel(restriction)}
+                      </span>
                       <span className="flex shrink-0 items-center gap-2">
-                        <span className="capitalize text-slate-500">{restriction.role}</span>
+                        <span className="text-slate-500">{t(ROLE_LABEL_KEYS[restriction.role])}</span>
                         <button
                           type="button"
                           onClick={() => handleRevoke(restriction)}
                           disabled={isSubmitting}
                           className="text-xs font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          Remove
+                          {t("restrictions.remove")}
                         </button>
                       </span>
                     </li>
@@ -258,12 +266,12 @@ export default function RestrictionsModal({
             {restrictions.length === 0 && (
               <div>
                 <p className="text-sm text-slate-500">
-                  No whitelist here yet — access is governed by ordinary grants only.
+                  {t("restrictions.none")}
                 </p>
                 {currentAdminGrants.length > 0 && (
                   <div className="mt-2">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Admin here today
+                      {t("restrictions.adminToday")}
                     </h4>
                     <ul className="mt-1.5 space-y-1.5">
                       {currentAdminGrants.map((grant) => (
@@ -271,14 +279,15 @@ export default function RestrictionsModal({
                           key={`${grant.grantee_type}:${grant.user_id ?? grant.team_id}`}
                           className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm"
                         >
-                          <span className="truncate text-slate-700">{granteeLabel(grant)}</span>
-                          <span className="capitalize text-slate-500">admin</span>
+                          <span className="truncate text-slate-700" dir="auto">
+                            {granteeLabel(grant)}
+                          </span>
+                          <span className="text-slate-500">{t("role.admin")}</span>
                         </li>
                       ))}
                     </ul>
                     <p className="mt-1 text-xs text-slate-400">
-                      Not on a whitelist yet — will stay whitelisted automatically once the first
-                      restriction is added here.
+                      {t("restrictions.adminTodayHint")}
                     </p>
                   </div>
                 )}
@@ -287,7 +296,7 @@ export default function RestrictionsModal({
 
             <div className="border-t border-slate-200 pt-4">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Add to whitelist
+                {t("restrictions.add")}
               </h4>
 
               <div className="mt-2 flex gap-2">
@@ -302,14 +311,14 @@ export default function RestrictionsModal({
                         : "border border-slate-300 text-slate-700 hover:bg-slate-100"
                     }`}
                   >
-                    {option === "user" ? "User" : "Team"}
+                    {option === "user" ? t("common.user") : t("common.team")}
                   </button>
                 ))}
               </div>
 
               {granteeOptions.length === 0 ? (
                 <p className="mt-3 text-sm text-slate-500">
-                  {granteeType === "user" ? "No users available." : "No teams exist yet."}
+                  {granteeType === "user" ? t("restrictions.noUsers") : t("common.noTeams")}
                 </p>
               ) : (
                 <div className="mt-3 space-y-3">
@@ -318,7 +327,7 @@ export default function RestrictionsModal({
                       htmlFor="restrict-grantee"
                       className="block text-sm font-medium text-slate-700"
                     >
-                      {granteeType === "user" ? "User" : "Team"}
+                      {granteeType === "user" ? t("common.user") : t("common.team")}
                     </label>
                     <select
                       id="restrict-grantee"
@@ -328,12 +337,12 @@ export default function RestrictionsModal({
                     >
                       {granteeType === "user"
                         ? users.map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.name} ({user.email})
+                            <option key={user.id} value={user.id} dir="auto">
+                              {t("common.userOption", { name: user.name, email: user.email })}
                             </option>
                           ))
                         : teams.map((team) => (
-                            <option key={team.id} value={team.id}>
+                            <option key={team.id} value={team.id} dir="auto">
                               {team.name}
                             </option>
                           ))}
@@ -345,17 +354,17 @@ export default function RestrictionsModal({
                       htmlFor="restrict-role"
                       className="block text-sm font-medium text-slate-700"
                     >
-                      Role
+                      {t("common.role")}
                     </label>
                     <select
                       id="restrict-role"
-                      className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm capitalize text-slate-900 focus:border-slate-500 focus:outline-none"
+                      className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
                       value={selectedRole}
                       onChange={(event) => setSelectedRole(event.target.value as Role)}
                     >
                       {ROLE_OPTIONS.map((role) => (
-                        <option key={role} value={role} className="capitalize">
-                          {role}
+                        <option key={role} value={role}>
+                          {t(ROLE_LABEL_KEYS[role])}
                         </option>
                       ))}
                     </select>
@@ -367,7 +376,7 @@ export default function RestrictionsModal({
                     disabled={isSubmitting || !selectedGranteeId}
                     className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isSubmitting ? "Applying…" : "Add to whitelist"}
+                    {isSubmitting ? `${t("common.applying")}…` : t("restrictions.add")}
                   </button>
                 </div>
               )}

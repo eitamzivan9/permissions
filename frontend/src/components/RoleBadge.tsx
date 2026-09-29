@@ -1,4 +1,6 @@
 import type { Role } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
+import { ROLE_LABEL_KEYS } from "../i18n/labels";
 
 // Shared visual mapping for effective roles so ResourceNode (and any future
 // consumer) doesn't reinvent the color scheme. `null` means no role at all,
@@ -16,13 +18,14 @@ interface RoleBadgeProps {
 }
 
 export default function RoleBadge({ role }: RoleBadgeProps) {
+  const { t } = useLanguage();
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
         role ? ROLE_STYLES[role] : NO_ROLE_STYLE
       }`}
     >
-      {role ?? "no access"}
+      {t(role ? ROLE_LABEL_KEYS[role] : "role.none")}
     </span>
   );
 }

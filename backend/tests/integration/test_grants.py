@@ -47,6 +47,8 @@ async def test_grant_without_manager_role_is_forbidden(client):
     token = await login_as(client, VP)
     resp = await _grant_user(client, token, MAP_ID, VP_SUBORDINATE, "viewer")
     assert resp.status_code == 403
+    # No specific code at this raise site -> ForbiddenError's generic default.
+    assert resp.json()["code"] == "forbidden"
 
 
 async def test_personal_workspace_owner_can_grant_to_a_non_subordinate(client):

@@ -364,6 +364,30 @@ background refetch briefly sets `isLoading`. Gating the whole tree on it unmount
 ever renders — found via manual UI testing 2026-07-31, not caught by the test suite (a
 frontend interaction bug, not a logic bug).
 
+## Localization (English / Hebrew)
+
+The UI is switchable EN/HE (`components/LanguageToggle.tsx`, choice kept in
+`localStorage`). **The frontend owns every translation; the backend never localizes.**
+- Strings live in `frontend/src/i18n/en.ts` (source of truth, flat keys) and `he.ts`
+  (`Partial<Messages>` — any key not translated there falls back to the English value).
+  Dictionary values are words only; shared decorative symbols (`+ ` prefix, `…` suffix,
+  wrapping parentheses) are added in the JSX, not duplicated per language. Components use
+  `useLanguage()`'s `t()`/`tPlural()` — never hardcode user-visible text. Enum values
+  (roles, resource types) go through `i18n/labels.ts`, never a hand-built key string.
+- Hebrew sets `<html dir="rtl">`. Use logical Tailwind utilities (`ms-`/`ps-`/`border-s`/
+  `text-start`), never `ml-`/`pl-`/`border-l`/`text-left`. User-provided names (mixed
+  Hebrew/English) need bidi isolation: `<bdi>` inside block elements (`dir="auto"` on a
+  block flips its alignment to the left), `dir="auto"` on inline spans and `<option>`s,
+  and on text inputs only once non-empty (`dir={value ? "auto" : undefined}`) so the
+  placeholder keeps the page's alignment.
+- Errors: `DomainError` carries a stable `code` + `params` (`domain/errors.py`; each
+  subclass has a generic default code), returned as `{detail, code, params}` by
+  `api/error_handlers.py`. `detail` stays English for other API callers; the UI renders
+  `errors.<code>` via `i18n/describeError.ts`, falling back to a per-status message. A
+  new user-facing error needs a specific `code=` at the raise site plus an `errors.*`
+  key in both dictionaries.
+- Data (resource/user/team names) is never translated — shown as stored.
+
 ## Delegation rule (who can change whose grant)
 
 `PermissionGrantService.can_manage()` — role-rank check applies to **both** grantee
@@ -458,7 +482,9 @@ unrelated frontend-only change doesn't re-run backend tests and vice versa):
 `db-tests` (`pytest tests/db`, same venv setup, against a `postgres:17.7` GitLab CI
 service container — this is the literal `db-migration-smoke`-style job an old coverage
 comment referenced before this tier existed), and `frontend-checks`
-(`npm ci && npm run lint && npm run build`, i.e. `oxlint` + `tsc -b`-via-`vite build`).
+(`npm ci && npm run lint && npm test && npm run build`, i.e. `oxlint` + Vitest
+(`src/**/*.test.ts`, currently the i18n dictionaries/fallback/error translation) +
+`tsc -b`-via-`vite build`).
 `backend-tests` and `db-tests` both rewrite `adfs-auth`'s dependency line the same way
 the Dockerfile does (see "Running the app" above) — CI-only, never touching the
 committed `pyproject.toml`.

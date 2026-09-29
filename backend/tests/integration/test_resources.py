@@ -52,6 +52,7 @@ async def test_create_child_with_only_viewer_at_parent_is_forbidden(client):
         client, sub_token, type="map", name="Nope", parent_id=FOLDER_ID
     )
     assert resp.status_code == 403
+    assert resp.json()["code"] == "create_requires_editor"
 
 
 async def test_create_child_with_no_access_at_parent_is_forbidden(client):
@@ -66,6 +67,7 @@ async def test_create_child_with_invalid_type_pair_is_conflict(client):
         client, root_token, type="map", name="Bad", parent_id="layer-roads-bike"
     )
     assert resp.status_code == 409
+    assert resp.json()["code"] == "invalid_child_type"
 
 
 async def test_create_child_under_nonexistent_parent_is_404(client):
@@ -130,3 +132,27 @@ async def test_super_editor_creates_team_workspace_with_named_admin(client):
     # the NAMED admin, not the superuser who created it, ends up Admin
     assert roles.get(VP_SUBORDINATE) == "admin"
     assert ROOT not in roles
+
+
+async def test_hebrew_resource_name_round_trips_through_create_and_search(client):
+    """UI data can be in Hebrew — names are stored and searched as-is (UTF-8),
+    never translated or mangled."""
+    root_token = await login_as(client, ROOT)
+    hebrew_name = "תכנון עירוני 2026"
+    resp = await _create_resource(
+        client, root_token, type="folder", name=hebrew_name, parent_id=WORKSPACE_ID
+    )
+    assert resp.status_code == 201
+    assert resp.json()["name"] == hebrew_name
+
+    search = await client.get(
+        "/catalog", headers=auth_headers(root_token), params={"search": "עירוני"}
+    )
+    assert search.status_code == 200
+
+    def names(items):
+        for item in items:
+            yield item["name"]
+            yield from names(item["children"])
+
+    assert hebrew_name in set(names(search.json()["items"]))

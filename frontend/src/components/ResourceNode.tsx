@@ -2,7 +2,8 @@ import type { DragEvent } from "react";
 import { useState } from "react";
 import type { CatalogItem, ResourceType } from "../api/client";
 import { moveResource } from "../api/client";
-import { TYPE_LABELS } from "../lib/resourceTypeMeta";
+import { useLanguage } from "../i18n/LanguageContext";
+import { TYPE_LABEL_KEYS } from "../i18n/labels";
 import ResourceInfoPanel from "./ResourceInfoPanel";
 import RoleBadge from "./RoleBadge";
 
@@ -26,6 +27,7 @@ interface ResourceNodeProps {
 // One recursive component for all 5 resource levels — mirrors the backend's
 // single Resource/CatalogItem model instead of a MapCard/LayerChip pair.
 export default function ResourceNode({ item, depth, onChanged }: ResourceNodeProps) {
+  const { t, describeError } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(() => !DEFAULT_COLLAPSED_TYPES.has(item.type));
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isDropTarget, setIsDropTarget] = useState(false);
@@ -72,12 +74,12 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
       await moveResource({ resourceId: payload.id, newParentId: item.id });
       onChanged();
     } catch (error: unknown) {
-      setMoveError(error instanceof Error ? error.message : "Failed to move the resource.");
+      setMoveError(describeError(error, "node.moveFailed"));
     }
   }
 
   return (
-    <div className={depth > 0 ? "border-l border-slate-200 pl-3" : undefined}>
+    <div className={depth > 0 ? "border-s border-slate-200 ps-3" : undefined}>
       <div
         draggable={isDraggable}
         onDragStart={isDraggable ? handleDragStart : undefined}
@@ -96,23 +98,28 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
               type="button"
               onClick={() => setIsExpanded((expanded) => !expanded)}
               className="shrink-0 text-slate-400 hover:text-slate-600"
-              aria-label={isExpanded ? "Collapse" : "Expand"}
+              aria-label={isExpanded ? t("node.collapse") : t("node.expand")}
             >
-              {isExpanded ? "▾" : "▸"}
+              {/* ▸ points toward where text flows; mirrored under RTL. */}
+              <span className={isExpanded ? undefined : "inline-block rtl:-scale-x-100"}>
+                {isExpanded ? "▾" : "▸"}
+              </span>
             </button>
           ) : (
             <span className="w-4 shrink-0" />
           )}
           <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-            {TYPE_LABELS[item.type]}
+            {t(TYPE_LABEL_KEYS[item.type])}
           </span>
-          <span className="truncate text-sm font-medium text-slate-900">{item.name}</span>
+          <span className="truncate text-sm font-medium text-slate-900" dir="auto">
+            {item.name}
+          </span>
           {!item.effective_role && item.can_fetch && (
             <span
               className="shrink-0 text-xs text-slate-400"
-              title="No role here, but reachable via at least one accessible child"
+              title={t("node.reachableHint")}
             >
-              (reachable)
+              ({t("node.reachable")})
             </span>
           )}
         </div>
@@ -122,8 +129,8 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
             type="button"
             onClick={() => setIsInfoOpen(true)}
             className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:bg-slate-100"
-            aria-label={`Actions for ${item.name}`}
-            title="Actions"
+            aria-label={t("node.actionsFor", { name: item.name })}
+            title={t("node.actions")}
           >
             i
           </button>
@@ -135,7 +142,7 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
       )}
 
       {hasChildren && isExpanded && (
-        <div className="mt-2 space-y-2 pl-4">
+        <div className="mt-2 space-y-2 ps-4">
           {item.children.map((child) => (
             <ResourceNode key={child.id} item={child} depth={depth + 1} onChanged={onChanged} />
           ))}

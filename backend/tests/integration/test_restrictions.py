@@ -217,6 +217,7 @@ async def test_removing_last_admin_restriction_via_api_is_409(client):
         f"/restrictions/{OTHER_MAP_ID}/user/{ROOT}", headers=auth_headers(root_token)
     )
     assert resp.status_code == 409
+    assert resp.json()["code"] == "last_admin_restriction"
 
     still_there = await client.get(
         f"/restrictions/{OTHER_MAP_ID}", headers=auth_headers(root_token)

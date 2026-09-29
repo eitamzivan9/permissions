@@ -121,7 +121,8 @@ class RestrictionService:
                 raise ConflictError(
                     f"cannot remove the last Admin-role restriction entry on {resource_id} "
                     "while other restriction entries remain — it would leave the resource "
-                    "gated with no one able to manage its whitelist"
+                    "gated with no one able to manage its whitelist",
+                    code="last_admin_restriction",
                 )
 
         await self._restriction_repository.delete_restriction(grantee, resource_id)

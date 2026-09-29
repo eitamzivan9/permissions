@@ -39,8 +39,10 @@ async def test_delete_organizational_resource_with_children_is_conflict(
     await resource_repo.create(type=child_type, name="child", parent_id=parent.id)
     await _admin_of(grant_repo, parent.id)
 
-    with pytest.raises(ConflictError):
+    with pytest.raises(ConflictError) as exc_info:
         await resource_service.delete(ACTOR, parent.id)
+    assert exc_info.value.code == "delete_not_empty"
+    assert exc_info.value.params == {"count": 1}
 
     assert await resource_repo.get_by_id(parent.id) is not None
 

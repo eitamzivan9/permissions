@@ -31,4 +31,9 @@ def register_error_handlers(app: FastAPI) -> None:
             if isinstance(exc, error_type):
                 status_code = code
                 break
-        return JSONResponse(status_code=status_code, content={"detail": str(exc)})
+        # `detail` stays English for API callers; `code`/`params` let a UI
+        # render the error in its own language (see domain/errors.py).
+        return JSONResponse(
+            status_code=status_code,
+            content={"detail": str(exc), "code": exc.code, "params": exc.params},
+        )

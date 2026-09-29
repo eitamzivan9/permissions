@@ -1,14 +1,7 @@
 import type { ResourceType } from "../api/client";
 
-// One shared source for these two resource-type facts — ResourceNode and
-// ResourceInfoPanel both need them, and this keeps them from drifting apart.
-export const TYPE_LABELS: Record<ResourceType, string> = {
-  workspace: "Workspace",
-  folder: "Folder",
-  map: "Map",
-  group: "Group",
-  layer: "Layer",
-};
+// Display labels for resource types are translated — see TYPE_LABEL_KEYS in
+// i18n/labels.ts.
 
 // Workspace/Folder/Group are this server's own organizational structure —
 // deleting one is real (only once empty). Map/Layer represent data owned by

@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import type { CatalogItem, GranteeInfo } from "../api/client";
 import { deleteGrant, deleteResource, getResourceAdmins, roleAtLeast } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { ORGANIZATIONAL_TYPES, TYPE_LABELS } from "../lib/resourceTypeMeta";
+import { useLanguage } from "../i18n/LanguageContext";
+import { TYPE_LABEL_KEYS } from "../i18n/labels";
+import { ORGANIZATIONAL_TYPES } from "../lib/resourceTypeMeta";
 import CreateResourceModal from "./CreateResourceModal";
 import ManageAccessModal from "./ManageAccessModal";
 import RestrictionsModal from "./RestrictionsModal";
@@ -27,6 +29,7 @@ type SubView = "menu" | "manage" | "create" | "restrict";
 // row already had.
 export default function ResourceInfoPanel({ item, onClose, onChanged }: ResourceInfoPanelProps) {
   const { user } = useAuth();
+  const { t, tPlural, describeError } = useLanguage();
   const [subView, setSubView] = useState<SubView>("menu");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -77,7 +80,7 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
       onChanged();
       onClose();
     } catch (error: unknown) {
-      setDeleteError(error instanceof Error ? error.message : "Failed to delete.");
+      setDeleteError(describeError(error, "info.deleteFailed"));
       setIsDeleting(false);
       setIsConfirmingDelete(false);
     }
@@ -92,7 +95,7 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
       onChanged();
       onClose();
     } catch (error: unknown) {
-      setDeleteError(error instanceof Error ? error.message : "Failed to remove access.");
+      setDeleteError(describeError(error, "info.removeAccessFailed"));
       setIsDeleting(false);
       setIsConfirmingDelete(false);
     }
@@ -143,15 +146,17 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-              {TYPE_LABELS[item.type]}
+              {t(TYPE_LABEL_KEYS[item.type])}
             </span>
-            <h3 className="mt-1 truncate text-base font-semibold text-slate-900">{item.name}</h3>
+            <h3 className="mt-1 truncate text-base font-semibold text-slate-900">
+              <bdi>{item.name}</bdi>
+            </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             ✕
           </button>
@@ -159,20 +164,20 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
 
         {item.effective_role === null && (
           <div className="mt-4 rounded-md bg-slate-50 p-3 text-sm">
-            <p className="font-medium text-slate-700">You don't have access to this resource.</p>
-            {isLoadingAdmins && <p className="mt-1 text-slate-500">Looking up who to ask…</p>}
+            <p className="font-medium text-slate-700">{t("info.noAccess")}</p>
+            {isLoadingAdmins && <p className="mt-1 text-slate-500">{`${t("info.lookingUpAdmins")}…`}</p>}
             {!isLoadingAdmins && admins !== null && admins.length === 0 && (
-              <p className="mt-1 text-slate-500">No one currently has Admin access here to ask.</p>
+              <p className="mt-1 text-slate-500">{t("info.noAdmins")}</p>
             )}
             {!isLoadingAdmins && admins !== null && admins.length > 0 && (
               <>
-                <p className="mt-1 text-slate-500">Ask one of the following for access:</p>
+                <p className="mt-1 text-slate-500">{t("info.askAdmins")}</p>
                 <ul className="mt-1 space-y-0.5">
                   {admins.map((admin) => (
                     <li key={`${admin.grantee_type}-${admin.id}`} className="text-slate-700">
-                      {admin.name}
+                      <bdi>{admin.name}</bdi>
                       {admin.grantee_type === "team" && (
-                        <span className="ml-1 text-xs text-slate-400">(team)</span>
+                        <span className="ms-1 text-xs text-slate-400">({t("common.teamSuffix")})</span>
                       )}
                     </li>
                   ))}
@@ -187,27 +192,27 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
             <button
               type="button"
               onClick={() => setSubView("create")}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-start text-sm font-medium text-slate-700 hover:bg-slate-100"
             >
-              + Create
+              + {t("info.create")}
             </button>
           )}
           {item.can_manage && (
             <button
               type="button"
               onClick={() => setSubView("manage")}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-start text-sm font-medium text-slate-700 hover:bg-slate-100"
             >
-              Manage access
+              {t("info.manageAccess")}
             </button>
           )}
           {canRestrictHere && (
             <button
               type="button"
               onClick={() => setSubView("restrict")}
-              className="block w-full rounded-md border border-amber-300 px-3 py-2 text-left text-sm font-medium text-amber-700 hover:bg-amber-50"
+              className="block w-full rounded-md border border-amber-300 px-3 py-2 text-start text-sm font-medium text-amber-700 hover:bg-amber-50"
             >
-              Restrictions
+              {t("info.restrictions")}
             </button>
           )}
 
@@ -215,15 +220,15 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
             <button
               type="button"
               onClick={() => setIsConfirmingDelete(true)}
-              className="block w-full rounded-md border border-red-300 px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+              className="block w-full rounded-md border border-red-300 px-3 py-2 text-start text-sm font-medium text-red-700 hover:bg-red-50"
             >
-              {canDeleteHere ? "Delete" : "Remove access"}
+              {canDeleteHere ? t("info.delete") : t("info.removeAccess")}
             </button>
           )}
           {(canDeleteHere || canRemoveAccessHere) && isConfirmingDelete && (
             <div className="rounded-md border border-red-300 p-3">
               <p className="text-sm text-red-700">
-                {canDeleteHere ? "Delete this resource?" : "Remove your access to this resource?"}
+                {canDeleteHere ? t("info.confirmDelete") : t("info.confirmRemoveAccess")}
               </p>
               <div className="mt-2 flex gap-2">
                 <button
@@ -232,7 +237,7 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
                   disabled={isDeleting}
                   className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isDeleting ? "Removing…" : "Confirm"}
+                  {isDeleting ? `${t("info.removing")}…` : t("common.confirm")}
                 </button>
                 <button
                   type="button"
@@ -240,15 +245,14 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
                   disabled={isDeleting}
                   className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
           )}
           {deleteBlockedByChildren && (
             <p className="text-xs text-slate-400">
-              Delete disabled — {item.children.length} item{item.children.length === 1 ? "" : "s"}{" "}
-              inside. Remove them first.
+              {tPlural("info.deleteBlocked", item.children.length)}
             </p>
           )}
           {deleteError && (
@@ -261,7 +265,7 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
             !canDeleteHere &&
             !canRemoveAccessHere &&
             !deleteBlockedByChildren && (
-              <p className="text-sm text-slate-500">No actions available to you here.</p>
+              <p className="text-sm text-slate-500">{t("info.noActions")}</p>
             )}
         </div>
       </div>

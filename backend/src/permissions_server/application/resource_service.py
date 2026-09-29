@@ -50,11 +50,17 @@ class ResourceService:
         if parent is None:
             raise NotFoundError(f"no resource with id {parent_id}")
         if not is_valid_child(parent.type, type):
-            raise ConflictError(f"{type.value} cannot be a child of {parent.type.value}")
+            raise ConflictError(
+                f"{type.value} cannot be a child of {parent.type.value}",
+                code="invalid_child_type",
+                params={"child": type.value, "parent": parent.type.value},
+            )
 
         actor_role = await self._access_resolver.effective_role(parent_id, user_id=actor.id)
         if actor_role is None or role_rank(actor_role) < role_rank(Role.EDITOR):
-            raise ForbiddenError(f"{actor.id} may not create a child of {parent_id}")
+            raise ForbiddenError(
+                f"{actor.id} may not create a child of {parent_id}", code="create_requires_editor"
+            )
 
         resource = await self._resource_repository.create(type=type, name=name, parent_id=parent_id)
         await self._permission_grant_service.bootstrap_admin_grant(actor, actor.id, resource.id)
@@ -109,20 +115,29 @@ class ResourceService:
             raise NotFoundError(f"no resource with id {new_parent_id}")
         if not is_valid_child(destination.type, resource.type):
             raise ConflictError(
-                f"{resource.type.value} cannot be a child of {destination.type.value}"
+                f"{resource.type.value} cannot be a child of {destination.type.value}",
+                code="invalid_child_type",
+                params={"child": resource.type.value, "parent": destination.type.value},
             )
 
         destination_ancestors = await self._resource_repository.path_to_root(new_parent_id)
         if any(ancestor.id == resource_id for ancestor in destination_ancestors):
-            raise ConflictError("cannot move a resource into its own subtree")
+            raise ConflictError(
+                "cannot move a resource into its own subtree", code="move_into_own_subtree"
+            )
 
         source_role = await self._access_resolver.effective_role(resource_id, user_id=actor.id)
         if source_role is not Role.ADMIN:
-            raise ForbiddenError(f"{actor.id} is not Admin at {resource_id}")
+            raise ForbiddenError(
+                f"{actor.id} is not Admin at {resource_id}", code="move_requires_admin"
+            )
 
         dest_role = await self._access_resolver.effective_role(new_parent_id, user_id=actor.id)
         if dest_role is None or role_rank(dest_role) < role_rank(Role.EDITOR):
-            raise ForbiddenError(f"{actor.id} is not Editor+ at {new_parent_id}")
+            raise ForbiddenError(
+                f"{actor.id} is not Editor+ at {new_parent_id}",
+                code="move_destination_requires_editor",
+            )
 
         return await self._resource_repository.move(resource_id, new_parent_id)
 
@@ -141,14 +156,18 @@ class ResourceService:
 
         actor_role = await self._access_resolver.effective_role(resource_id, user_id=actor.id)
         if actor_role is not Role.ADMIN:
-            raise ForbiddenError(f"{actor.id} is not Admin at {resource_id}")
+            raise ForbiddenError(
+                f"{actor.id} is not Admin at {resource_id}", code="delete_requires_admin"
+            )
 
         if is_organizational(resource.type):
             children = await self._resource_repository.children_of(resource_id)
             if children:
                 raise ConflictError(
                     f"cannot delete: {len(children)} child resource(s) exist; "
-                    "remove them before deleting"
+                    "remove them before deleting",
+                    code="delete_not_empty",
+                    params={"count": len(children)},
                 )
 
         ids = await self._resource_repository.descendant_ids(resource_id)

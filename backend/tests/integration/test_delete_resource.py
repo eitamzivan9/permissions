@@ -96,12 +96,16 @@ async def test_delete_forbidden_with_no_access_at_all(client):
     token = await login_as(client, OUTSIDER)
     resp = await _delete(client, token, MAP_ID)
     assert resp.status_code == 403
+    assert resp.json()["code"] == "delete_requires_admin"
 
 
 async def test_delete_nonexistent_resource_is_404(client):
     root_token = await login_as(client, ROOT)
     resp = await _delete(client, root_token, "resource-does-not-exist")
     assert resp.status_code == 404
+    # No specific code at this raise site -> NotFoundError's generic default.
+    assert resp.json()["code"] == "not_found"
+    assert resp.json()["params"] == {}
 
 
 async def test_delete_non_empty_folder_is_conflict(client):
@@ -114,6 +118,8 @@ async def test_delete_non_empty_folder_is_conflict(client):
     # The resource id must never leak into the error message — it's not
     # actionable for the caller and the frontend shouldn't have to scrub it.
     assert FOLDER_ID not in resp.json()["detail"]
+    assert resp.json()["code"] == "delete_not_empty"
+    assert resp.json()["params"]["count"] > 0
 
     catalog = await client.get("/catalog", headers=auth_headers(root_token))
     assert _find(catalog.json()["items"], FOLDER_ID) is not None

@@ -96,8 +96,9 @@ async def test_revoke_last_admin_restriction_is_conflict_when_other_entries_rema
         ADMIN, OTHER_USER_GRANTEE, resource.id, Role.VIEWER
     )  # auto-whitelists ADMIN as the only Admin-role entry
 
-    with pytest.raises(ConflictError):
+    with pytest.raises(ConflictError) as exc_info:
         await restriction_service.revoke_restriction(ADMIN, admin_grantee, resource.id)
+    assert exc_info.value.code == "last_admin_restriction"
 
     assert await restriction_repo.get_restriction(admin_grantee, resource.id) is not None
 

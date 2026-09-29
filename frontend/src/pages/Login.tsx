@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { listMockUsers } from "../api/client";
 import type { MockUser } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import LanguageToggle from "../components/LanguageToggle";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function Login() {
   const [users, setUsers] = useState<MockUser[]>([]);
@@ -14,6 +16,7 @@ export default function Login() {
   const [signInError, setSignInError] = useState<string | null>(null);
 
   const { login, isAuthenticated } = useAuth();
+  const { t, describeError } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,7 +37,7 @@ export default function Login() {
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setLoadError(error instanceof Error ? error.message : "Failed to load mock users.");
+        setLoadError(describeError(error, "login.loadUsersFailed"));
       })
       .finally(() => {
         if (!cancelled) setIsLoadingUsers(false);
@@ -42,6 +45,9 @@ export default function Login() {
     return () => {
       cancelled = true;
     };
+    // describeError is recreated per language; re-fetching on a language
+    // switch isn't wanted, so it's deliberately left out of the deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSubmit(event: FormEvent) {
@@ -53,7 +59,7 @@ export default function Login() {
       await login(selectedUserId);
       navigate("/", { replace: true });
     } catch (error: unknown) {
-      setSignInError(error instanceof Error ? error.message : "Login failed.");
+      setSignInError(describeError(error, "login.failed"));
     } finally {
       setIsSigningIn(false);
     }
@@ -61,14 +67,17 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <div className="absolute end-4 top-4">
+        <LanguageToggle />
+      </div>
       <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900">Permissions Server</h1>
+        <h1 className="text-xl font-semibold text-slate-900">{t("login.title")}</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Mock ADFS sign-in — choose an identity to continue.
+          {t("login.subtitle")}
         </p>
 
         {isLoadingUsers && (
-          <p className="mt-6 text-sm text-slate-500">Loading mock users…</p>
+          <p className="mt-6 text-sm text-slate-500">{`${t("login.loadingUsers")}…`}</p>
         )}
 
         {loadError && (
@@ -79,7 +88,7 @@ export default function Login() {
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="mock-user" className="block text-sm font-medium text-slate-700">
-                Sign in as
+                {t("login.signInAs")}
               </label>
               <select
                 id="mock-user"
@@ -88,8 +97,8 @@ export default function Login() {
                 onChange={(event) => setSelectedUserId(event.target.value)}
               >
                 {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.email})
+                  <option key={user.id} value={user.id} dir="auto">
+                    {t("common.userOption", { name: user.name, email: user.email })}
                   </option>
                 ))}
               </select>
@@ -104,7 +113,7 @@ export default function Login() {
               disabled={!selectedUserId || isSigningIn}
               className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSigningIn ? "Signing in…" : "Sign in"}
+              {isSigningIn ? `${t("login.signingIn")}…` : t("login.signIn")}
             </button>
           </form>
         )}

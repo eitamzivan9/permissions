@@ -157,26 +157,42 @@ export function roleAtLeast(role: Role | null, threshold: Role): boolean {
 // Typed errors — callers distinguish 401 (redirect to login) vs 403 (show error)
 // ---------------------------------------------------------------------------
 
+export type ErrorParams = Record<string, string | number>;
+
+// What the backend's error handler returns: an English `detail` for API
+// callers, plus a stable `code`/`params` the UI translates into its own
+// language (see i18n/describeError.ts). `code` is absent for errors that
+// don't come from a domain error (e.g. FastAPI's 422 validation errors).
+interface ErrorBody {
+  message: string;
+  code: string | null;
+  params: ErrorParams;
+}
+
 export class ApiError extends Error {
   readonly status: number;
+  readonly code: string | null;
+  readonly params: ErrorParams;
 
-  constructor(status: number, message: string) {
-    super(message);
+  constructor(status: number, body: ErrorBody) {
+    super(body.message);
     this.name = "ApiError";
     this.status = status;
+    this.code = body.code;
+    this.params = body.params;
   }
 }
 
 export class UnauthorizedError extends ApiError {
-  constructor(message = "Your session has expired. Please log in again.") {
-    super(401, message);
+  constructor(body: ErrorBody) {
+    super(401, body);
     this.name = "UnauthorizedError";
   }
 }
 
 export class ForbiddenError extends ApiError {
-  constructor(message = "You are not authorized to perform this action.") {
-    super(403, message);
+  constructor(body: ErrorBody) {
+    super(403, body);
     this.name = "ForbiddenError";
   }
 }
@@ -202,21 +218,30 @@ export function clearStoredToken(): void {
 // Core request helper
 // ---------------------------------------------------------------------------
 
-async function extractErrorMessage(response: Response): Promise<string> {
+function isErrorParams(value: unknown): value is ErrorParams {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    Object.values(value).every((v) => typeof v === "string" || typeof v === "number")
+  );
+}
+
+async function extractErrorBody(response: Response): Promise<ErrorBody> {
+  const fallback = response.statusText || `Request failed with status ${response.status}`;
   try {
     const body: unknown = await response.json();
-    if (
-      body !== null &&
-      typeof body === "object" &&
-      "detail" in body &&
-      typeof (body as { detail: unknown }).detail === "string"
-    ) {
-      return (body as { detail: string }).detail;
+    if (body !== null && typeof body === "object") {
+      const { detail, code, params } = body as Record<string, unknown>;
+      return {
+        message: typeof detail === "string" ? detail : fallback,
+        code: typeof code === "string" ? code : null,
+        params: isErrorParams(params) ? params : {},
+      };
     }
   } catch {
     // response body wasn't JSON (or was empty) — fall through to the default
   }
-  return response.statusText || `Request failed with status ${response.status}`;
+  return { message: fallback, code: null, params: {} };
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -230,13 +255,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
 
   if (response.status === 401) {
-    throw new UnauthorizedError(await extractErrorMessage(response));
+    throw new UnauthorizedError(await extractErrorBody(response));
   }
   if (response.status === 403) {
-    throw new ForbiddenError(await extractErrorMessage(response));
+    throw new ForbiddenError(await extractErrorBody(response));
   }
   if (!response.ok) {
-    throw new ApiError(response.status, await extractErrorMessage(response));
+    throw new ApiError(response.status, await extractErrorBody(response));
   }
   if (response.status === 204) {
     return undefined as T;

@@ -4,13 +4,16 @@ import type { CatalogItem } from "../api/client";
 import { getCatalog, isSuperEditor, UnauthorizedError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import CreateTeamWorkspaceModal from "../components/CreateTeamWorkspaceModal";
+import LanguageToggle from "../components/LanguageToggle";
 import ResourceNode from "../components/ResourceNode";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const PAGE_SIZE = 3;
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function Permissions() {
   const { user, logout } = useAuth();
+  const { t, tPlural, describeError } = useLanguage();
   const navigate = useNavigate();
 
   const [searchInput, setSearchInput] = useState("");
@@ -51,11 +54,14 @@ export default function Permissions() {
           navigate("/login", { replace: true });
           return;
         }
-        setError(err instanceof Error ? err.message : "Failed to load the catalog.");
+        setError(describeError(err, "permissions.loadFailed"));
       })
       .finally(() => {
         setIsLoading(false);
       });
+    // describeError changes with the language; a language switch must not
+    // refetch (and collapse) the catalog, so it's deliberately not a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, logout, navigate]);
 
   useEffect(() => {
@@ -103,7 +109,7 @@ export default function Permissions() {
           navigate("/login", { replace: true });
           return;
         }
-        setError(err instanceof Error ? err.message : "Failed to load the rest of the catalog.");
+        setError(describeError(err, "permissions.loadMoreFailed"));
       })
       .finally(() => setIsLoadingMore(false));
   }
@@ -118,21 +124,22 @@ export default function Permissions() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-4">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">Resource Access</h1>
+            <h1 className="text-lg font-semibold text-slate-900">{t("permissions.title")}</h1>
             {user && (
               <p className="text-sm text-slate-500">
-                {user.name} &middot; {user.email}
+                <bdi>{user.name}</bdi> &middot; <bdi>{user.email}</bdi>
               </p>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <LanguageToggle />
             {isSuperEditor(user) && (
               <button
                 type="button"
                 onClick={() => setIsCreatingWorkspace(true)}
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
-                + Create team workspace
+                + {t("permissions.createTeamWorkspace")}
               </button>
             )}
             <button
@@ -140,7 +147,7 @@ export default function Permissions() {
               onClick={handleLogout}
               className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
             >
-              Log out
+              {t("permissions.logout")}
             </button>
           </div>
         </div>
@@ -156,7 +163,7 @@ export default function Permissions() {
       <main className="mx-auto max-w-4xl px-4 py-6">
         <input
           type="search"
-          placeholder="Search by name (any workspace, folder, map, group, or layer)…"
+          placeholder={`${t("permissions.searchPlaceholder")}…`}
           value={searchInput}
           onChange={(event) => setSearchInput(event.target.value)}
           className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
@@ -172,11 +179,11 @@ export default function Permissions() {
             ResourceNode unmounts with it, discarding its just-shown success
             message. Found via manual UI testing 2026-07-31. */}
         {isLoading && items.length === 0 && (
-          <p className="mt-6 text-sm text-slate-500">Loading…</p>
+          <p className="mt-6 text-sm text-slate-500">{`${t("common.loading")}…`}</p>
         )}
 
         {!isLoading && !error && items.length === 0 && (
-          <p className="mt-6 text-sm text-slate-500">Nothing matches your search.</p>
+          <p className="mt-6 text-sm text-slate-500">{t("permissions.noResults")}</p>
         )}
 
         {!error && items.length > 0 && (
@@ -197,7 +204,7 @@ export default function Permissions() {
                 describe anything the user could actually reach by loading
                 more. items.length is the only number that's ever true. */}
             <span className="text-sm text-slate-500">
-              Showing {items.length} {items.length === 1 ? "result" : "results"}
+              {tPlural("permissions.showing", items.length)}
             </span>
             {loadedPages < totalPages && (
               <button
@@ -206,7 +213,7 @@ export default function Permissions() {
                 disabled={isLoadingMore}
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isLoadingMore ? "Loading…" : "Show all"}
+                {isLoadingMore ? `${t("common.loading")}…` : t("permissions.showAll")}
               </button>
             )}
           </div>
