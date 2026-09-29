@@ -295,8 +295,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/ManageAccessModal.tsx": {
-    "mtime": 1790680026.9712155,
-    "ast_hash": "85908aacb5f42ce6d9157b49d30f2ca1",
+    "mtime": 1790680968.1380663,
+    "ast_hash": "bcaafcab07b398c336391cc0d8ead95c",
     "semantic_hash": ""
   },
   "frontend/src/main.tsx": {
@@ -310,8 +310,8 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/Permissions.tsx": {
-    "mtime": 1790679250.6480317,
-    "ast_hash": "f968954fdd293ed5f64f21a45cbeb6fa",
+    "mtime": 1790680951.4074454,
+    "ast_hash": "e394e6fbb6623349d12c598fc2970c0e",
     "semantic_hash": ""
   },
   "frontend/tsconfig.app.json": {
@@ -335,8 +335,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1790680240.5025907,
-    "ast_hash": "89f2053fef2c49b67ef8af75361d6fc6",
+    "mtime": 1790681293.8307414,
+    "ast_hash": "a36754b3dca7b635e6992d759db4b43a",
     "semantic_hash": ""
   },
   "frontend/README.md": {
@@ -650,18 +650,18 @@
     "semantic_hash": ""
   },
   "frontend/src/components/CreateResourceModal.tsx": {
-    "mtime": 1790679250.6435914,
-    "ast_hash": "e50b6436e45e41538eedb948f6ce4151",
+    "mtime": 1790681218.1150992,
+    "ast_hash": "0b252adefd6668dfbd68698b65344909",
     "semantic_hash": ""
   },
   "frontend/src/components/CreateTeamWorkspaceModal.tsx": {
-    "mtime": 1790679250.6435914,
-    "ast_hash": "f071eb84817f591459f7e2f29f326cd5",
+    "mtime": 1790681218.1159935,
+    "ast_hash": "e76ac3c8934033ebedd9324b93a29bba",
     "semantic_hash": ""
   },
   "frontend/src/components/RestrictionsModal.tsx": {
-    "mtime": 1790680027.014836,
-    "ast_hash": "caac4af3ea9c8ae3751b8fd32aa21de5",
+    "mtime": 1790680951.405434,
+    "ast_hash": "00555474d7139048f782f2b2bbc71072",
     "semantic_hash": ""
   },
   "backend/tests/integration/test_delete_resource.py": {
@@ -695,8 +695,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/ResourceInfoPanel.tsx": {
-    "mtime": 1790679250.6456234,
-    "ast_hash": "bf3407e118da3405f761203d9c2c80fd",
+    "mtime": 1790680951.405434,
+    "ast_hash": "bbcaca5128871a991a065555a1eae221",
     "semantic_hash": ""
   },
   "frontend/src/lib/resourceTypeMeta.ts": {

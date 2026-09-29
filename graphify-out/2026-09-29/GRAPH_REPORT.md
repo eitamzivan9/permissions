@@ -1,12 +1,12 @@
 # Graph Report - premissions  (2026-09-29)
 
 ## Corpus Check
-- 163 files · ~63,144 words
+- 163 files · ~63,271 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1434 nodes · 2931 edges · 115 communities (103 shown, 12 thin omitted)
-- Extraction: 79% EXTRACTED · 20% INFERRED · 0% AMBIGUOUS · INFERRED: 600 edges (avg confidence: 0.67)
+- 1434 nodes · 2932 edges · 115 communities (103 shown, 12 thin omitted)
+- Extraction: 80% EXTRACTED · 20% INFERRED · 0% AMBIGUOUS · INFERRED: 600 edges (avg confidence: 0.67)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness

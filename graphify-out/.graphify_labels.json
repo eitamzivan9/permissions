@@ -109,9 +109,13 @@
   "107": "Base",
   "108": "ConflictError",
   "109": ".__init__",
+  "110": "Resource",
   "111": "Database Reference — Permissions Server",
   "112": "env.py",
   "113": "CI/CD Setup — Remaining Manual Step",
   "114": "README.md",
-  "115": "Quick start (always DB/Postgres mode)"
+  "115": "Quick start (always DB/Postgres mode)",
+  "116": "ResourceType",
+  "117": "Restriction",
+  "118": "Role"
 }
