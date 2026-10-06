@@ -100,7 +100,7 @@
   "98": "InMemoryEntityRepository",
   "99": "Base",
   "100": "AuditLogRepository",
-  "101": ".__init__",
+  "101": "env.py",
   "102": "docker-entrypoint.sh",
   "103": "EntityRepository",
   "104": "TokenValidator",
@@ -109,13 +109,12 @@
   "107": "Base",
   "108": "ConflictError",
   "109": ".__init__",
-  "110": "Resource",
+  "110": "register_error_handlers",
   "111": "Database Reference — Permissions Server",
-  "112": "env.py",
+  "112": ".upsert_grant",
   "113": "CI/CD Setup — Remaining Manual Step",
   "114": "README.md",
   "115": "Quick start (always DB/Postgres mode)",
-  "116": "ResourceType",
-  "117": "Restriction",
-  "118": "Role"
+  "116": "access_resolver.py",
+  "117": ".access_anchor_ids"
 }

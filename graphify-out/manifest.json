@@ -50,8 +50,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/routers/grants_router.py": {
-    "mtime": 1787321233.304679,
-    "ast_hash": "8e22027713ee82ce92314d536e52adaf",
+    "mtime": 1791291446.9331255,
+    "ast_hash": "56120fa401e95f5251619dac30039c1b",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/schemas/__init__.py": {
@@ -80,8 +80,8 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "backend/src/permissions_server/application/access_resolver.py": {
-    "mtime": 1787321233.3136816,
-    "ast_hash": "ffea61745f50727aac1109ec3f2ddd44",
+    "mtime": 1791283998.062745,
+    "ast_hash": "0baafec9e7709753971e42a22a011ee0",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/application/auth_service.py": {
@@ -90,8 +90,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/application/catalog_service.py": {
-    "mtime": 1785505663.1298358,
-    "ast_hash": "abab5a7b695314ce424c4d001e278747",
+    "mtime": 1791284151.5359986,
+    "ast_hash": "f1a87b222db3fd4386b3887e8004aa5c",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/application/permission_grant_service.py": {
@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "backend/tests/integration/test_catalog.py": {
-    "mtime": 1787321233.3476033,
-    "ast_hash": "e36fb9687e1ae17a0a034a396ed50001",
+    "mtime": 1791284043.9612317,
+    "ast_hash": "4182b84b5cf7df3a7cc5c7ac29721ba9",
     "semantic_hash": ""
   },
   "backend/tests/integration/test_external_access.py": {
@@ -230,8 +230,8 @@
     "semantic_hash": ""
   },
   "backend/tests/integration/test_grants.py": {
-    "mtime": 1790694747.5879023,
-    "ast_hash": "fca0c1e27fd254593e76aafbcf3c7451",
+    "mtime": 1791284072.89459,
+    "ast_hash": "4000b77456300b123ec4cca24dfb7909",
     "semantic_hash": ""
   },
   "backend/tests/unit/__init__.py": {
@@ -255,8 +255,8 @@
     "semantic_hash": ""
   },
   "backend/tests/unit/test_catalog_service.py": {
-    "mtime": 1785505701.5591953,
-    "ast_hash": "496653028b365781e7ce947ce1c715b3",
+    "mtime": 1791284111.9262826,
+    "ast_hash": "1db3deec45af1181e18b6d03ed7782f9",
     "semantic_hash": ""
   },
   "backend/tests/unit/test_org_hierarchy_cycle_safety.py": {
@@ -310,8 +310,8 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/Permissions.tsx": {
-    "mtime": 1791283539.380194,
-    "ast_hash": "9f21ddfe0f80d9a317576eba7189833c",
+    "mtime": 1791284253.124964,
+    "ast_hash": "f6b7d6ebf5b85c77c8535598c52aaf45",
     "semantic_hash": ""
   },
   "frontend/tsconfig.app.json": {
@@ -335,8 +335,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1791283546.3756711,
-    "ast_hash": "e4c00859379d794e87690255cea175b1",
+    "mtime": 1791291459.1021273,
+    "ast_hash": "a1f4279204f863de308876859e4a58cb",
     "semantic_hash": ""
   },
   "frontend/README.md": {
@@ -365,8 +365,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/routers/access_router.py": {
-    "mtime": 1787321233.300215,
-    "ast_hash": "a67010565c5df121bf483067bcbbef53",
+    "mtime": 1791291446.7471886,
+    "ast_hash": "cda5ff3e895827a838d9987619029311",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/routers/audit_router.py": {
@@ -575,8 +575,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1787321233.2930133,
-    "ast_hash": "fd1750cea15e37f495fc9fb0c002afc1",
+    "mtime": 1791284304.9038608,
+    "ast_hash": "ba061ef7bf968e47baadb0a79b8d65af",
     "semantic_hash": ""
   },
   "backend/alembic/versions/0002_owner_restrictions.py": {
@@ -620,8 +620,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/domain/ports/restriction_repository.py": {
-    "mtime": 1787321233.3158593,
-    "ast_hash": "4b990f93c4e043035ce975d6c72d05fc",
+    "mtime": 1791283998.3012483,
+    "ast_hash": "57f6c2763a5812668037b4869ab2c29d",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/infrastructure/memory/in_memory_restriction_repository.py": {
@@ -645,8 +645,8 @@
     "semantic_hash": ""
   },
   "backend/tests/integration/test_restrictions.py": {
-    "mtime": 1790694747.5895512,
-    "ast_hash": "ed5f2f10ebb461cb87488a220fb654aa",
+    "mtime": 1791284072.89459,
+    "ast_hash": "434837fcaa30fb00ae58ba0d4d1d5535",
     "semantic_hash": ""
   },
   "frontend/src/components/CreateResourceModal.tsx": {
@@ -770,8 +770,8 @@
     "semantic_hash": ""
   },
   "docs/PLAN.md": {
-    "mtime": 1791283546.449058,
-    "ast_hash": "5cc91d83c78dfb3d1756d1490d480c9f",
+    "mtime": 1791284304.905439,
+    "ast_hash": "e8668a81ddadc310fddc4e644343b614",
     "semantic_hash": ""
   },
   "docs/migration/CLOSED_NETWORK_MIGRATION.md": {
