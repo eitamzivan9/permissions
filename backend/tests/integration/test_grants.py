@@ -199,4 +199,4 @@ async def test_user_can_revoke_their_own_grant_without_any_manage_authority(clie
     catalog = await client.get(
         "/catalog", headers=auth_headers(sub_token), params={"search": "Zoning Districts"}
     )
-    assert catalog.json()["items"][0]["effective_role"] is None
+    assert catalog.json()["items"] == []  # no access left, so it's hidden

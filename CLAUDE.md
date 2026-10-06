@@ -2,8 +2,8 @@
 
 Permissions/access-control server for the geography team's resource tree (workspaces,
 folders, maps, groups, layers). Owns *permissions only* — never resource feature data,
-never a users table. Two responsibilities: (1) a web UI listing every resource in the
-system with the logged-in user's own effective role, letting managers/admins grant or
+never a users table. Two responsibilities: (1) a web UI listing every resource the
+logged-in user can reach (plus the path above it), with their own effective role, letting managers/admins grant or
 change access for people below them (or for Teams), (2) `/external/v1/my-access`, an
 API other internal apps call (forwarding the end-user's ADFS JWT) to get the maps a
 user can reach.
@@ -298,36 +298,41 @@ Self-lockout is still possible via a **different** admin's restriction that does
 list you (e.g. two admins on the same resource, one restricts naming only themselves)
 — only your own *first* restriction can no longer lock you out.
 
-This **reverses part of** the "Known, deliberate departures" universal-visibility
-decision below — see that section for what's still true (visibility) vs. what changed
-(the whitelist mechanism itself, now implemented).
+This **reverses part of** the "Known, deliberate departures" section below — see that
+section for the history. Restrictions now also drive *visibility*: a resource you're not
+whitelisted on is hidden from you (see "UI scope").
 
 ## UI scope
 
-The main page lists **every** resource in the system (not just ones the caller has
-access to), each annotated with the caller's own `effective_role` (possibly `None`),
-`can_manage`, and `can_fetch` — **with one deliberate exception, confirmed 2026-07-31**:
-another user's personal workspace (and everything inside it) is hidden entirely from a
-caller who can't reach any of it at all (`CatalogService._is_hidden_other_personal_
-workspace()`). Everyone still sees their OWN personal workspace regardless of role, and
-every non-personal (team/shared) resource — e.g. City Planning — stays universally
-visible to everyone regardless of access, exactly as before. The test is `can_fetch`
-(reachable at that node OR any descendant), not "am I the owner": a non-owner with a
-real explicit grant somewhere inside another user's personal workspace can still see
-(and search-find) that specific branch — the rule is "can't reach ANY of it," not
-"isn't the owner." `SUPER_EDITOR`/`SUPER_VIEWER` always see every personal workspace
-too, since their system-wide bypass already makes `can_fetch` true everywhere. This
-filtering happens in `CatalogService.get_catalog()` for both the no-search and search
-branches, using the same "total reflects the unfiltered universe, a page may return
-fewer than page_size items" pattern `get_external_access` already established — no new
-pagination contract, just one more filter condition, scoped only to personal
-workspaces.
+**Reachable-only visibility (confirmed with the project owner 2026-10-06 — replaces the
+earlier universal-visibility design).** The main page lists only resources the caller
+can reach: a resource appears iff its `can_fetch` is true — the caller has an
+`effective_role` there OR at any descendant. `can_fetch` bubbles up (e.g. a Map is
+fetchable if the caller has a role on just one Layer inside it), so the **path** above a
+reachable resource still shows, with `effective_role=None`, so the tree shows where it
+lives; unreachable siblings/branches are pruned from `children`, and a top-level
+Workspace with nothing reachable inside is hidden entirely. Restrictions count: a
+non-whitelisted caller has no role there, so it's hidden too. Exceptions: the caller's
+OWN personal workspace always shows (pinned first, no-search), and
+`SUPER_EDITOR`/`SUPER_VIEWER` see everything (`AccessResolver.reaches_everything()`).
 
-`can_fetch` bubbles up from descendants: a resource with
-no role of its own is still `can_fetch=true` if the caller can reach even one
-descendant (e.g. a Map is fetchable if the caller has a role on just one Layer inside
-it, since the map has to load to render that layer). Search matches any resource by
-name at any depth, returning it with its full subtree.
+Implementation (`CatalogService.get_catalog()`): for system-role holders, the repo's
+own pagination over the whole tree is used unchanged. For everyone else it starts from
+`AccessResolver.access_anchor_ids()` — every resource where the caller (or one of their
+teams) holds a grant or a restriction-whitelist entry, the only places a role can come
+from — climbs each to its root, builds those roots' pruned trees, and paginates the
+result in memory. Cost is bounded by what the caller holds, not tree size, and `total`
+is exact (a page is never short because of hidden items). Search matches any visible
+resource by name at any depth (same case-insensitive substring as `list_page`),
+returning it with its pruned subtree. If a new access source is ever added to
+`effective_role()`, `access_anchor_ids()` must learn about it too, or those resources
+silently disappear from the catalog.
+
+**Hiding is catalog-only, by design (confirmed with the project owner 2026-10-06 — do
+not "fix" by gating).** Two read endpoints stay ungated for any authenticated caller,
+even for a resource hidden from them: `GET /grants/{resource_id}` (other backends need
+to look up who has what access by id) and `GET /access/admins/{resource_id}` (anyone
+must be able to find a resource's owners to contact them).
 
 **Per-resource actions live behind one "i" info button, not a row of buttons**
 (confirmed with the project owner — supersedes the original one-button-per-action row).
@@ -494,13 +499,9 @@ committed `pyproject.toml`.
 The reference docs (PDF design doc, Hebrew docx spec, and the `sk-permissions` repo)
 describe a **whitelist-only visibility model** ("everything invisible by default,"
 siblings hidden unless explicitly granted, restrict/unrestrict cascading). This project
-deliberately keeps **universal visibility** for team/shared resources instead — every
-non-personal resource (name, type, position in the tree) is shown to every user
-regardless of their access — confirmed with the project owner. **Narrowed 2026-07-31**:
-personal workspaces are the one exception — another user's personal workspace (and
-everything inside it) IS hidden from a caller who can't reach any of it, matching the
-reference docs' model but scoped only to personal workspaces, not the whole tree. See
-"UI scope" above for the exact rule.
+originally kept **universal visibility** instead. **Superseded 2026-10-06** (confirmed with
+the project owner): the catalog now shows only what the caller can reach, plus the path
+above it — close to the reference docs' model. See "UI scope" above for the exact rule.
 
 **Superseded, as of the `instructions/new-guide-he.txt` pass**: the second half of this
 departure — "no restrict/unrestrict mechanism" — is no longer accurate. The user
@@ -508,9 +509,9 @@ explicitly confirmed the new whitelist requirement supersedes that part of this
 document ("what i wrote is what decide, not claude.md"). A `Restriction`
 mechanism now exists (see "Restrictions (whitelist gate)" above) with its own
 `RESTRICT`/`UNRESTRICT`/`RESTRICTION_ROLE_CHANGE` audit actions. What did **not**
-change: restrictions gate *access* (who can act as what role), not *visibility* — a
-restricted resource's name/position still shows in the catalog for everyone, only
-`effective_role` goes to `None` for grantees not on the whitelist.
+change at the time: restrictions gated only *access*, not *visibility* — superseded
+2026-10-06 along with universal visibility; a non-whitelisted caller now doesn't see
+the restricted resource at all.
 
 ## Known deferred work (do not silently "fix" — ask first)
 

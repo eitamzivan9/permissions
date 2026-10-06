@@ -87,8 +87,9 @@ def _grantee_info_to_out(info: GranteeInfo) -> GranteeInfoOut:
         "Every grantee (user or team) that currently resolves to Admin at the nearest "
         "ancestor gating this resource (restriction-aware, same precedence "
         "AccessResolver.effective_role uses). Meant for 'who do I ask' when the "
-        "caller's own effective_role here is None — ungated like /my-access, since it "
-        "only makes sense to call on a resource already visible to the caller."
+        "caller's own effective_role here is None. Deliberately ungated (confirmed with "
+        "the project owner 2026-10-06): anyone may look up a resource's owners to "
+        "contact them, even for a resource hidden from them in the catalog."
     ),
 )
 async def list_admins(

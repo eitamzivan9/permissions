@@ -28,7 +28,8 @@ Hebrew docx dev spec, and the `sk-permissions` reference repo) — 5-level resou
 hierarchy, 4-role model, Teams, audit log, permission transparency — but implemented
 fresh inside this project's own hexagonal architecture, not by cloning the reference
 repo. Two confirmed, deliberate departures from those docs: (1) universal visibility
-(every resource is shown to every user) instead of the docs' whitelist-only model, and
+(every resource is shown to every user) instead of the docs' whitelist-only model —
+**superseded 2026-10-06**, see "Visibility" below — and
 (2) an org-chart delegation check layered on top of role-rank for individual-user
 grants (not present in the reference docs), kept for user grantees only — not for Team
 grants, matching the docs there.
@@ -57,15 +58,12 @@ from day one.
 
 ## Confirmed decisions (do not re-litigate)
 
-- **Visibility**: universal for team/shared resources — the catalog shows every
-  non-personal resource to every user, not just ones they can access (deliberate
-  departure from the reference docs' whitelist model). **Narrowed 2026-07-31**: another
-  user's personal workspace (and everything inside it) IS hidden from a caller who
-  can't reach any of it — see "Restrictions (whitelist)" below for the unrelated
-  access-gating mechanism, and `CatalogService._is_hidden_other_personal_workspace()`
-  for this visibility carve-out. Separately, a `Restriction` mechanism gates *access*
-  (not visibility) — this was a later, explicitly confirmed reversal of the
-  "no restrict/unrestrict mechanism" half of this same departure.
+- **Visibility** (confirmed 2026-10-06, replaces the earlier universal-visibility
+  design): the catalog shows only resources the caller can reach (`can_fetch`), plus
+  the path of ancestors above them with no role; unreachable branches and workspaces
+  are hidden, and so is anything the caller isn't whitelisted on by a restriction. The
+  caller's own personal workspace always shows; `SUPER_EDITOR`/`SUPER_VIEWER` see
+  everything. See `CLAUDE.md` "UI scope" for the implementation.
 - **Delegation rule**: actor's *effective* role at the target resource must be Manager
   or Admin (Manager may only grant Editor/Viewer, never Manager/Admin); for **user**
   grantees, the actor must additionally be transitively above the target user in the
@@ -330,18 +328,18 @@ replacing `seed_data.py` as the source of truth.
   caller's own personal workspace, if one exists, is always pinned first via
   `ResourceRepository.list_by_type(..., pinned_id=...)` — a real total order over the
   full Workspace set (not a page-1-only splice), so it's stable across pagination.
-  Both branches also filter out another user's personal workspace when the caller's
-  `can_fetch` there is false (confirmed 2026-07-31) — the one exception to universal
-  visibility; `total`/`page` still reflect the unfiltered universe, same pattern as
-  `get_external_access`'s existing "may return fewer than page_size" behavior.
+  Both branches show only reachable resources (`can_fetch`) plus the path above them
+  (confirmed 2026-10-06); for non-system-role callers the result is built from their
+  access anchors (`AccessResolver.access_anchor_ids()`) and paginated in memory, so
+  `total` is exact.
 
 ## Restrictions (whitelist)
 
 A later pass (`instructions/new-guide-he.txt`) added a whitelist mechanism that
 **reverses part of** the "universal visibility, no restrict mechanism" decision below
 — confirmed directly with the user ("what i wrote is what decide, not claude.md").
-What did NOT change: resource *visibility* (name/position in the catalog) is still
-universal; only *access* (`effective_role`) is gated. `AccessResolver.effective_role()`
+Since 2026-10-06 visibility follows access, so a non-whitelisted caller doesn't see
+the restricted resource at all. `AccessResolver.effective_role()`
 precedence, in order: (1) `SUPER_EDITOR` bypasses unconditionally; (2) a restriction at
 the nearest ancestor (inclusive) with any restriction row gates completely — an
 unlisted grantee gets `None` regardless of any grant they hold, even Admin; (3)
@@ -438,9 +436,8 @@ whatever real grants already exist in Postgres.
 
 ## Known gaps vs. the reference design docs (tracked, not silently fixed)
 
-- Universal *visibility* instead of the docs' whitelist-only model — deliberate,
-  confirmed, still true (see `CLAUDE.md`). Resource names/positions always show; only
-  *access* can now be gated.
+- ~~Universal *visibility* instead of the docs' whitelist-only model~~ — closed
+  2026-10-06: the catalog now shows only reachable resources plus their path.
 - A `Restriction`/whitelist *access* mechanism now exists (see "Restrictions
   (whitelist)" above) — this supersedes the earlier "no restrict/unrestrict mechanism"
   note, confirmed directly with the user. Both system-wide roles (`SUPER_EDITOR` and

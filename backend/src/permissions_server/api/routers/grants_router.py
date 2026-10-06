@@ -81,7 +81,10 @@ async def list_manageable_users(
     description=(
         "Every explicit grant (any grantee) directly on this resource — not "
         "inherited ones from ancestors. Drives the 'who already has access here' "
-        "list in the Manage Access UI."
+        "list in the Manage Access UI. Deliberately ungated (confirmed with the "
+        "project owner 2026-10-06): any authenticated caller, including other "
+        "backends, may look up who holds what on any resource id — even one "
+        "hidden from them in the catalog."
     ),
 )
 async def list_grants_for_resource(

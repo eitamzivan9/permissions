@@ -32,9 +32,9 @@ class RestrictionRepository(Protocol):
         self, grantees: list[Grantee]
     ) -> list[Restriction]:
         """Every restriction entry across ALL resources, for a set of
-        grantees (a user + every team they belong to) — kept for parity with
-        PermissionGrantRepository's method set, e.g. future 'where am I
-        restricted' tooling. Not on AccessResolver's hot path."""
+        grantees (a user + every team they belong to) — feeds
+        AccessResolver.access_anchor_ids, which the catalog uses to find
+        everything the caller can reach without scanning the whole tree."""
         ...
 
     async def upsert_restriction(

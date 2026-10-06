@@ -68,14 +68,11 @@ export default function Permissions() {
     loadCatalog();
   }, [loadCatalog]);
 
-  // `total` is documented (CatalogService.get_catalog) as reflecting the
-  // UNFILTERED universe — it includes other users' personal workspaces that
-  // are hidden from this caller and will never actually appear on ANY page.
-  // So looping until `accumulated.length >= total` can spin forever (found
-  // via manual UI testing: it did, thousands of requests deep). The only
-  // sound termination bound is the page COUNT implied by total/page_size —
-  // some of those pages may legitimately come back with fewer items than
-  // page_size, or even zero, once hidden items are filtered out.
+  // Bound "Show all" by the page COUNT implied by total/page_size, never by
+  // `accumulated.length >= total`: if the catalog changes mid-loop, a
+  // length-based bound can spin forever (it once did, when `total` still
+  // counted hidden items — CatalogService.get_catalog now returns an exact,
+  // visibility-filtered total, but the page-count bound stays the safe one).
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // Kept separate from `isLoading`/loadCatalog's flag on purpose: flipping
@@ -196,13 +193,7 @@ export default function Permissions() {
 
         {total > 0 && (
           <div className="mt-6 flex items-center justify-between">
-            {/* Not "X of {total}" — `total` is the raw, unfiltered row count
-                from the repo (see loadCatalog's comment above and
-                CatalogService.get_catalog): it includes other users'
-                personal workspaces that are permanently hidden from this
-                caller and will never appear on any page, so it doesn't
-                describe anything the user could actually reach by loading
-                more. items.length is the only number that's ever true. */}
+            {/* Count of what's loaded so far; "Show all" fetches the rest. */}
             <span className="text-sm text-slate-500">
               {tPlural("permissions.showing", items.length)}
             </span>

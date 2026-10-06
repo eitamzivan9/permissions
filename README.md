@@ -4,8 +4,8 @@ Permissions / access-control server for the geography team's resource tree
 (**Workspace → Folder → Map → Group → Layer**). It owns *permissions only* — never
 resource feature data, never a users table. Two responsibilities:
 
-1. A web UI listing every resource in the system, annotated with the logged-in user's
-   own effective role, letting Managers/Admins grant or change access for people below
+1. A web UI listing every resource the logged-in user can reach (plus the path above
+   it), annotated with their own effective role, letting Managers/Admins grant or change access for people below
    them in the org (or for Teams).
 2. `/external/v1/my-access` — an API other internal apps call (forwarding the
    end-user's ADFS JWT) to find out which maps a user can reach.

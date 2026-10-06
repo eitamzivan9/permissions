@@ -31,8 +31,11 @@ async def _restrict_user(client, actor_token, resource_id, user_id, role):
 
 
 async def _effective_role(client, token, query):
+    """None when the resource is hidden from the caller entirely — the
+    catalog only lists what they can reach, so hidden means no role."""
     catalog = await client.get("/catalog", headers=auth_headers(token), params={"search": query})
-    return catalog.json()["items"][0]["effective_role"]
+    items = catalog.json()["items"]
+    return items[0]["effective_role"] if items else None
 
 
 async def test_restriction_auto_whitelists_the_setting_admin(client):

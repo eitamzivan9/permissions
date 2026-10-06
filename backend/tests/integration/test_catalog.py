@@ -16,21 +16,38 @@ async def test_catalog_requires_auth(client):
     assert resp.status_code == 401
 
 
-async def test_catalog_shows_full_tree_with_none_for_ungranted_user(client):
-    # u031 (bottom-of-org IC) has no grants at all
+async def test_catalog_hides_everything_from_ungranted_user(client):
+    # u031 (bottom-of-org IC) has no grants at all — sees nothing.
     token = await login_as(client, "u031")
     resp = await client.get("/catalog", headers=auth_headers(token))
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total"] == 1  # one seeded Workspace
+    assert body["total"] == 0
+    assert body["items"] == []
+
+
+async def test_catalog_shows_only_path_to_granted_layer(client):
+    """u001 grants u016 Viewer on one Layer: u016 sees that Layer plus the
+    Workspace/Map above it (no role there), and nothing else."""
+    root_token = await login_as(client, "u001")
+    resp = await client.put(
+        "/grants/layer-roads-bike/user/u016",
+        headers=auth_headers(root_token),
+        json={"role": "viewer"},
+    )
+    assert resp.status_code == 200
+
+    token = await login_as(client, "u016")
+    body = (await client.get("/catalog", headers=auth_headers(token))).json()
+    assert body["total"] == 1
     workspace = body["items"][0]
     assert workspace["id"] == "ws-city"
     assert workspace["effective_role"] is None
-    assert workspace["can_manage"] is False
+    assert workspace["can_fetch"] is True
 
     map_item = _find(body["items"], "map-city-roads")
-    assert map_item is not None
     assert map_item["effective_role"] is None
+    assert [layer["id"] for layer in map_item["children"]] == ["layer-roads-bike"]
 
 
 async def test_root_user_has_admin_from_bootstrap_seed(client):

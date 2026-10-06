@@ -1,11 +1,11 @@
-"""Builds the searchable, paginated resource catalog for the UI. Visibility
-stays universal by explicit design choice (see plan.md): every resource is
-shown to every user, annotated with their own effective role, including no
-role at all — never filtered by access. ONE deliberate exception (confirmed
-2026-07-31): another user's personal workspace (and everything inside it) is
-hidden entirely from a caller who can't reach any of it — everyone still sees
-their OWN personal workspace, and every non-personal (team/shared) resource
-stays universally visible regardless of access, unchanged."""
+"""Builds the searchable, paginated resource catalog for the UI. A caller
+only sees what they can reach (confirmed 2026-10-06 — replaces the earlier
+universal-visibility design): a resource appears iff its can_fetch is true,
+i.e. the caller has a role there OR at any descendant. The ancestors of a
+reachable resource therefore still appear (with no role of their own) so the
+tree shows where it lives; everything else is hidden. The caller's own
+personal workspace is always shown. System-role holders reach everything, so
+nothing is hidden from them."""
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ class CatalogItem:
     just one Layer inside it, since the map has to be fetched to render that
     layer at all. Bubbles up from children; never just this node's own role."""
     children: list["CatalogItem"]
+    """Only children with can_fetch=True — unreachable branches are pruned."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,65 +50,90 @@ class CatalogService:
     async def get_catalog(
         self, user_id: str, *, search: str | None, page: int, page_size: int
     ) -> Page[CatalogItem]:
-        """No search: paginate over top-level Workspaces, each with its full
-        subtree nested inside. With search: paginate over every resource (any
-        type, any depth) whose name matches, each returned as a top-level
-        item with its own full subtree — the same 'search finds a resource,
-        return it with everything under it' shape the old flat map search
-        had, generalized to N levels. Either way nothing is filtered by
-        access; only `effective_role`/`can_manage` vary per caller.
+        """No search: paginate over top-level Workspaces, each with its
+        (pruned) subtree nested inside. With search: paginate over every
+        visible resource (any type, any depth) whose name matches, each
+        returned as a top-level item with its own pruned subtree.
 
         No-search only: the caller's own personal workspace (if they have one)
         is always pinned first, so it's visible without hunting for it in the
         alphabetical/paginated list — confirmed 2026-07-31."""
         snapshot = await self._access_resolver.snapshot_for_user(user_id)
+        my_workspace = await self._resource_repository.find_workspace_by_owner(user_id)
+        pinned_id = my_workspace.id if my_workspace else None
 
+        if self._access_resolver.reaches_everything(snapshot):
+            return await self._unfiltered_page(snapshot, search, pinned_id, page, page_size)
+
+        items = await self._reachable_items(snapshot, search, my_workspace)
+        start = (page - 1) * page_size
+        return Page(
+            items=items[start : start + page_size],
+            total=len(items),
+            page=page,
+            page_size=page_size,
+        )
+
+    async def _unfiltered_page(
+        self,
+        snapshot: AccessSnapshot,
+        search: str | None,
+        pinned_id: str | None,
+        page: int,
+        page_size: int,
+    ) -> Page[CatalogItem]:
+        """Nothing is hidden from this caller, so the repository's own
+        pagination over the whole tree is already exact."""
         if search:
             resource_page = await self._resource_repository.list_page(
                 search=search, page=page, page_size=page_size
             )
         else:
-            my_workspace = await self._resource_repository.find_workspace_by_owner(user_id)
             resource_page = await self._resource_repository.list_by_type(
-                ResourceType.WORKSPACE,
-                page=page,
-                page_size=page_size,
-                pinned_id=my_workspace.id if my_workspace else None,
+                ResourceType.WORKSPACE, page=page, page_size=page_size, pinned_id=pinned_id
             )
-
-        # Same "may return fewer than page_size" pattern as get_external_access
-        # below: total/page reflect the unfiltered universe from the repo,
-        # items are filtered afterward (here, someone else's personal
-        # workspace the caller can't reach anywhere inside — see module
-        # docstring). node.can_fetch already means "reachable at this node OR
-        # any descendant," which is exactly the right test — a caller with an
-        # explicit grant deep inside someone else's workspace can still reach
-        # (and see) that specific branch, not just an all-or-nothing gate.
-        items = []
-        for resource in resource_page.items:
-            node = await self._build_node(resource, snapshot)
-            if await self._is_hidden_other_personal_workspace(resource, user_id, node.can_fetch):
-                continue
-            items.append(node)
-
         return Page(
-            items=items,
+            items=[await self._build_node(r, snapshot) for r in resource_page.items],
             total=resource_page.total,
             page=resource_page.page,
             page_size=resource_page.page_size,
         )
 
-    async def _is_hidden_other_personal_workspace(
-        self, resource: Resource, user_id: str, can_fetch: bool
-    ) -> bool:
-        if can_fetch:
-            return False
-        if resource.type is ResourceType.WORKSPACE:
-            root = resource
-        else:
-            path = await self._resource_repository.path_to_root(resource.id)
-            root = path[0] if path else resource
-        return root.owner_id is not None and root.owner_id != user_id
+    async def _reachable_items(
+        self, snapshot: AccessSnapshot, search: str | None, my_workspace: Resource | None
+    ) -> list[CatalogItem]:
+        """Every visible top-level item, sorted. Starts from the caller's
+        access anchors (their own grants/whitelist entries — bounded by what
+        they hold, not by the size of the tree) rather than scanning every
+        workspace, so pagination over the result is exact."""
+        pinned_id = my_workspace.id if my_workspace else None
+        root_resources = {my_workspace.id: my_workspace} if my_workspace else {}
+        for anchor_id in await self._access_resolver.access_anchor_ids(snapshot):
+            path = await self._resource_repository.path_to_root(anchor_id)
+            if path:
+                root_resources[path[0].id] = path[0]
+
+        roots: list[CatalogItem] = []
+        for resource in root_resources.values():
+            node = await self._build_node(resource, snapshot)
+            if node.can_fetch or node.id == pinned_id:
+                roots.append(node)
+
+        if not search:
+            return sorted(roots, key=lambda n: (n.id != pinned_id, n.name))
+
+        # Same case-insensitive substring match the repositories' list_page uses.
+        query = search.lower()
+        matches = [n for n in self._flatten(roots) if query in n.name.lower()]
+        return sorted(matches, key=lambda n: n.name)
+
+    @classmethod
+    def _flatten(cls, nodes: list[CatalogItem]) -> list[CatalogItem]:
+        flat: list[CatalogItem] = []
+        for node in nodes:
+            flat.append(node)
+            flat.extend(cls._flatten(node.children))
+        return flat
 
     async def _build_node(self, resource: Resource, snapshot: AccessSnapshot) -> CatalogItem:
         effective_role = await self._access_resolver.effective_role(resource.id, snapshot=snapshot)
@@ -121,7 +147,7 @@ class CatalogService:
             can_manage=effective_role is not None
             and role_rank(effective_role) >= role_rank(Role.MANAGER),
             can_fetch=effective_role is not None or any(child.can_fetch for child in children),
-            children=children,
+            children=[child for child in children if child.can_fetch],
         )
 
     async def get_external_access(

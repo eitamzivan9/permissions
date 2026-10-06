@@ -1,4 +1,4 @@
-from permissions_server.domain.entities import Grantee, GranteeType, ResourceType, Role
+from permissions_server.domain.entities import Grantee, GranteeType, ResourceType, Role, SystemRole
 
 MAP_ID = "map-city-roads"
 WORKSPACE_ID = "ws-city"
@@ -16,22 +16,14 @@ def _find(items, resource_id):
     return None
 
 
-async def test_catalog_no_search_returns_full_workspace_tree_annotated_none(catalog_service):
+def _all_ids(items):
+    return {item.id for item in items} | {i for item in items for i in _all_ids(item.children)}
+
+
+async def test_catalog_hides_everything_from_ungranted_user(catalog_service):
     page = await catalog_service.get_catalog("u031", search=None, page=1, page_size=10)
-
-    assert page.total == 1  # one seeded Workspace
-    workspace = page.items[0]
-    assert workspace.id == WORKSPACE_ID
-    assert workspace.effective_role is None
-    assert workspace.can_manage is False
-    assert workspace.can_fetch is False
-
-    map_node = _find(page.items, MAP_ID)
-    assert map_node is not None
-    assert map_node.effective_role is None
-    assert map_node.can_fetch is False
-    assert len(map_node.children) == 3  # highways, local, bike layers
-    assert all(child.effective_role is None for child in map_node.children)
+    assert page.total == 0
+    assert page.items == []
 
 
 async def test_can_fetch_bubbles_up_from_a_single_accessible_layer(catalog_service, grant_repo):
@@ -46,10 +38,79 @@ async def test_can_fetch_bubbles_up_from_a_single_accessible_layer(catalog_servi
     assert map_item.effective_role is None  # no role at the map's own node
     assert map_item.can_fetch is True  # but it bubbles up from the one granted layer
 
-    granted_layer = next(c for c in map_item.children if c.id == layer_id)
-    assert granted_layer.can_fetch is True
-    other_layers = [c for c in map_item.children if c.id != layer_id]
-    assert all(c.can_fetch is False for c in other_layers)
+    # The Map's other layers, with no role reaching them, are pruned.
+    assert [c.id for c in map_item.children] == [layer_id]
+    assert map_item.children[0].can_fetch is True
+
+
+async def test_unreachable_siblings_are_hidden_but_path_stays(catalog_service, grant_repo):
+    """Only the path down to a reachable resource is shown above it: the
+    Workspace appears (no role), sibling branches with nothing reachable
+    don't."""
+    await grant_repo.upsert_grant(USER_GRANTEE, MAP_ID, Role.VIEWER, granted_by="mgr")
+
+    page = await catalog_service.get_catalog("u016", search=None, page=1, page_size=10)
+    assert page.total == 1
+    workspace = page.items[0]
+    assert workspace.id == WORKSPACE_ID
+    assert workspace.effective_role is None
+    assert workspace.can_fetch is True
+
+    visible = _all_ids(page.items)
+    assert MAP_ID in visible
+    assert "map-zoning" not in visible  # a sibling Map with no grant
+
+
+async def test_restricted_resource_is_hidden_from_non_whitelisted(
+    catalog_service, grant_repo, restriction_repo
+):
+    await grant_repo.upsert_grant(USER_GRANTEE, WORKSPACE_ID, Role.EDITOR, granted_by="mgr")
+    await restriction_repo.upsert_restriction(
+        Grantee(GranteeType.USER, user_id="u001"), MAP_ID, Role.ADMIN, granted_by="u001"
+    )
+
+    page = await catalog_service.get_catalog("u016", search=None, page=1, page_size=10)
+    visible = _all_ids(page.items)
+    assert WORKSPACE_ID in visible
+    assert MAP_ID not in visible
+
+
+async def test_restriction_whitelist_alone_makes_resource_visible(
+    catalog_service, restriction_repo
+):
+    """A whitelist entry with no grant anywhere is still access — the
+    resource (and its path) must show up."""
+    await restriction_repo.upsert_restriction(USER_GRANTEE, MAP_ID, Role.VIEWER, granted_by="u001")
+
+    page = await catalog_service.get_catalog("u016", search="City Roads", page=1, page_size=10)
+    assert [n.id for n in page.items] == [MAP_ID]
+    assert page.items[0].effective_role is Role.VIEWER
+
+
+async def test_system_role_sees_everything(catalog_service, system_role_repo):
+    await system_role_repo.grant_system_role("u031", SystemRole.SUPER_VIEWER, granted_by="test")
+
+    page = await catalog_service.get_catalog("u031", search=None, page=1, page_size=10)
+    assert page.total == 1
+    map_node = _find(page.items, MAP_ID)
+    assert map_node.effective_role is Role.VIEWER
+    assert len(map_node.children) == 3
+
+    search_page = await catalog_service.get_catalog("u031", search="City Roads", page=1, page_size=10)
+    assert [n.id for n in search_page.items] == [MAP_ID]
+
+
+async def test_pagination_total_counts_only_visible_items(catalog_service, resource_repo, grant_repo):
+    for name in ("Alpha", "Beta", "Gamma"):
+        ws = await resource_repo.create(type=ResourceType.WORKSPACE, name=name, parent_id=None)
+        await grant_repo.upsert_grant(USER_GRANTEE, ws.id, Role.VIEWER, granted_by="mgr")
+    await resource_repo.create(type=ResourceType.WORKSPACE, name="Hidden", parent_id=None)
+
+    first = await catalog_service.get_catalog("u016", search=None, page=1, page_size=2)
+    second = await catalog_service.get_catalog("u016", search=None, page=2, page_size=2)
+    assert first.total == second.total == 3
+    assert [n.name for n in first.items] == ["Alpha", "Beta"]
+    assert [n.name for n in second.items] == ["Gamma"]
 
 
 async def test_catalog_search_finds_resource_with_subtree_and_manager_role(
@@ -83,7 +144,9 @@ async def test_catalog_search_no_match_returns_empty(catalog_service):
     assert page.items == []
 
 
-async def test_no_search_pins_callers_personal_workspace_first(catalog_service, resource_repo):
+async def test_no_search_pins_callers_personal_workspace_first(
+    catalog_service, resource_repo, grant_repo
+):
     """Confirmed 2026-07-31: the caller's own personal workspace always shows
     first in the default (no-search) catalog, regardless of alphabetical
     order, so they don't have to hunt for it."""
@@ -91,39 +154,28 @@ async def test_no_search_pins_callers_personal_workspace_first(catalog_service, 
         type=ResourceType.WORKSPACE,
         name="Zzz Personal Sandbox",
         parent_id=None,
-        owner_id="u999",
+        owner_id="u016",
     )
+    await grant_repo.upsert_grant(USER_GRANTEE, WORKSPACE_ID, Role.VIEWER, granted_by="mgr")
 
-    page = await catalog_service.get_catalog("u999", search=None, page=1, page_size=10)
-    assert page.items[0].id == personal.id
+    page = await catalog_service.get_catalog("u016", search=None, page=1, page_size=10)
+    assert [n.id for n in page.items] == [personal.id, WORKSPACE_ID]
 
-    # A different caller with no access to u999's personal workspace doesn't
-    # see it at all (see test_other_users_personal_workspace_is_hidden below)
-    # — City Planning is not just first, it's the ONLY item they see.
-    other_page = await catalog_service.get_catalog("u031", search=None, page=1, page_size=10)
-    assert other_page.items[0].id == WORKSPACE_ID
-    assert personal.id not in {item.id for item in other_page.items}
+
+async def test_own_personal_workspace_shown_even_without_access(catalog_service, resource_repo):
+    personal = await resource_repo.create(
+        type=ResourceType.WORKSPACE, name="My Sandbox", parent_id=None, owner_id="u031"
+    )
+    page = await catalog_service.get_catalog("u031", search=None, page=1, page_size=10)
+    assert [n.id for n in page.items] == [personal.id]
 
 
 async def test_other_users_personal_workspace_is_hidden(catalog_service, resource_repo):
-    """Confirmed 2026-07-31: a personal workspace is invisible to anyone who
-    can't reach it at all — the one deliberate exception to universal
-    visibility. Everyone still sees their OWN personal workspace (previous
-    test) and every non-personal resource stays universally visible
-    regardless of access (test_catalog_no_search_returns_full_workspace_tree_
-    annotated_none, unchanged)."""
     personal = await resource_repo.create(
         type=ResourceType.WORKSPACE, name="Someone Else's Sandbox", parent_id=None, owner_id="u999"
     )
-
     page = await catalog_service.get_catalog("u031", search=None, page=1, page_size=10)
     assert personal.id not in {item.id for item in page.items}
-    assert page.total == 2  # total reflects the unfiltered universe, item is just filtered out
-    assert len(page.items) == 1  # only City Planning
-
-    # The owner still sees it.
-    owner_page = await catalog_service.get_catalog("u999", search=None, page=1, page_size=10)
-    assert personal.id in {item.id for item in owner_page.items}
 
 
 async def test_explicit_grant_inside_someone_elses_personal_workspace_still_visible(

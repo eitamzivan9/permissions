@@ -70,6 +70,25 @@ class AccessResolver:
         )
 
     @staticmethod
+    def reaches_everything(snapshot: AccessSnapshot) -> bool:
+        """True when effective_role() can never return None for this caller:
+        both system-wide roles resolve to at least Viewer on every resource,
+        restrictions included (see effective_role steps 1-2)."""
+        return bool(snapshot.system_roles)
+
+    async def access_anchor_ids(self, snapshot: AccessSnapshot) -> set[str]:
+        """Every resource where the caller holds a grant or a restriction-
+        whitelist entry (directly or via a team). Outside the system-role
+        bypass, effective_role() can only return a role at or below one of
+        these nodes — so any resource the caller can reach has an anchor in
+        its path_to_root(). Lives here, beside effective_role(), so a new
+        access source has to update both together."""
+        restrictions = await self._restriction_repository.list_restrictions_for_grantees(
+            list(snapshot.grantees)
+        )
+        return set(snapshot.grants_by_resource) | {r.resource_id for r in restrictions}
+
+    @staticmethod
     def _walk_up(path: list[Resource]) -> Iterator[Resource]:
         """Nearest-ancestor-wins traversal shared by nearest_grants,
         nearest_restriction, and nearest_admins: yields path (root-first)
