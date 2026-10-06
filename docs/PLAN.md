@@ -487,7 +487,7 @@ self-grant revoke via the existing grants DELETE endpoint), new
 `MoveResourceModal.tsx` wires up the previously-unused `moveResource()` client
 function, `RestrictionsModal.tsx`'s "Clear all" goes sequential (was `Promise.all`,
 now tolerant of the new last-admin 409), `Permissions.tsx` drops Previous/Next
-pagination for a "Show all" loop at `PAGE_SIZE = 3`.
+pagination for a "Show all" loop at `PAGE_SIZE = 20`.
 
 **Phase 2 storage is built and verified** against a real local PostgreSQL 18 install:
 `sqlalchemy[asyncio]` + `asyncpg` + `alembic` added → `infrastructure/db/`

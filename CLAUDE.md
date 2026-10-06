@@ -348,7 +348,7 @@ gating this resource, via `GET /access/admins/{resource_id}`
 caller knows who to ask; this lookup only fires when there's no access, never as a
 wasted round trip when there already is one.
 
-The catalog list itself is paginated at `PAGE_SIZE = 3` (`Permissions.tsx`) with a
+The catalog list itself is paginated at `PAGE_SIZE = 20` (`Permissions.tsx`) with a
 "Show all" control instead of Previous/Next — clicking it loops the same paginated
 `getCatalog` client call (never an unpaginated endpoint, see "Scale assumptions" below)
 to fetch the rest and appends into one flat, scrollable list, hiding the button once

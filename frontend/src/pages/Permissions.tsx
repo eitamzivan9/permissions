@@ -8,7 +8,7 @@ import LanguageToggle from "../components/LanguageToggle";
 import ResourceNode from "../components/ResourceNode";
 import { useLanguage } from "../i18n/LanguageContext";
 
-const PAGE_SIZE = 3;
+const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function Permissions() {
