@@ -156,8 +156,14 @@ export default function RestrictionsModal({
     // "another admin remains" check before either commits). This also lets
     // us report exactly which entries couldn't be cleared instead of
     // failing the whole batch on the first rejection.
+    // Admin-role entries go last: the last-Admin guard rejects removing an
+    // Admin while other entries still remain, so clearing them first could
+    // fail even though the whole list can be cleared.
+    const adminsLast = [...restrictions].sort(
+      (a, b) => Number(a.role === "admin") - Number(b.role === "admin"),
+    );
     const failures: string[] = [];
-    for (const restriction of restrictions) {
+    for (const restriction of adminsLast) {
       try {
         await deleteRestriction({
           resourceId,
