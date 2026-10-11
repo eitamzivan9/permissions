@@ -50,8 +50,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/routers/grants_router.py": {
-    "mtime": 1787321233.304679,
-    "ast_hash": "8e22027713ee82ce92314d536e52adaf",
+    "mtime": 1791291446.9331255,
+    "ast_hash": "56120fa401e95f5251619dac30039c1b",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/schemas/__init__.py": {
@@ -335,8 +335,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1791284304.9006355,
-    "ast_hash": "bcbbaa4a2a8a8fde2636b12d2fd89b20",
+    "mtime": 1791291459.1021273,
+    "ast_hash": "a1f4279204f863de308876859e4a58cb",
     "semantic_hash": ""
   },
   "frontend/README.md": {
@@ -365,8 +365,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/routers/access_router.py": {
-    "mtime": 1787321233.300215,
-    "ast_hash": "a67010565c5df121bf483067bcbbef53",
+    "mtime": 1791291446.7471886,
+    "ast_hash": "cda5ff3e895827a838d9987619029311",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/routers/audit_router.py": {
