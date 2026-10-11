@@ -1,7 +1,7 @@
 # Graph Report - premissions  (2026-10-11)
 
 ## Corpus Check
-- 170 files · ~66,770 words
+- 170 files · ~66,818 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9558aa91`
+- Built from commit: `33856398`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -57,15 +57,15 @@
 - get_my_access
 - InMemoryTeamRepository
 - PermissionGrantRepository
-- unit/conftest.py
+- AuthenticatedUser
 - env.py
 - build_engine_and_sessionmaker
 - get_catalog
 - AdfsAuthMockTokenIssuer
 - tests/conftest.py
 - Role
-- AccessTransparencyService
-- check_access
+- AuthService
+- AuditLogRepository
 - .__init__
 - TeamModel
 - SystemRoleModel
@@ -88,39 +88,39 @@
 - test_move.py
 - OrgHierarchy
 - TokenValidator
-- get_catalog
+- audit_for_resource
 - .upsert_grant
 - SystemRoleRepository
 - get_my_access
 - InMemoryTeamRepository
-- test_auth_flow.py
+- InMemoryTeamRepository
 - _entry
 - InMemoryEntityRepository
 - Base
-- AuditLogRepository
+- unit/conftest.py
 - env.py
 - docker-entrypoint.sh
 - EntityRepository
-- .can_set_restriction
-- ApiError
-- TokenValidator
-- test_auth_flow.py
-- .can_manage
+- InMemoryEntityRepository
+- plugins
+- .set_restriction
+- TokenIssuer
+- ConflictError
 - register_error_handlers
 - Page
 - CI/CD Setup — Remaining Manual Step
-- AuthService
+- OrgHierarchy
 - Quick start (always DB/Postgres mode)
-- access_resolver.py
+- _admin_of
 - .nearest_grants
-- ResourceInfoPanel.tsx
+- TokenValidator
 - AccessTransparencyService
 - UserDirectory
 - SystemRoleRepository
 - get_my_access
-- TokenIssuer
-- ConflictError
-- OrgHierarchy
+- Base
+- .__init__
+- .__init__
 - test_revoke_succeeds_for_self_even_without_any_manage_authority
 - test_revoke_succeeds_for_self_regardless_of_org_chart_position
 - test_revoke_for_someone_else_is_unaffected_by_self_revocation_bypass
@@ -206,8 +206,8 @@ Cohesion: 0.24
 Nodes (8): TeamMembershipModel, TeamModel, async_sessionmaker, AsyncSession, Team, PostgreSQL-backed TeamRepository, used when PERMISSIONS_DATABASE_URL is set., SqlAlchemyTeamRepository, _to_domain()
 
 ### Community 11 - "App Bootstrap & JWT Issuer"
-Cohesion: 0.18
-Nodes (7): AccessSnapshot, Role, The one place effective role is computed. Never re-implement this resolution lo, Ties among multiple grants (or restriction entries) at the nearest         ance, A user's full grant set, pre-indexed for O(1) lookups. Grants come from     the, True when effective_role() can never return None for this caller:         both, Every resource where the caller holds a grant or a restriction-         whiteli
+Cohesion: 0.14
+Nodes (16): CatalogItem, createResource(), deleteGrant(), deleteResource(), getResourceAdmins(), GranteeInfo, roleAtLeast(), CreateResourceModal() (+8 more)
 
 ### Community 12 - "Auth Service & Token Issuer"
 Cohesion: 0.24
@@ -242,8 +242,8 @@ Cohesion: 0.11
 Nodes (23): AccessResolver, can_manage, Delegation Rule, Dependency Inversion Principle (DIP), domain.ports, /external/v1/my-access API, Hexagonal Architecture, Interface Segregation Principle (ISP) (+15 more)
 
 ### Community 21 - "Frontend Lint Config"
-Cohesion: 0.22
-Nodes (8): plugins, rules, react/only-export-components, react/rules-of-hooks, $schema, oxc, typescript, warn
+Cohesion: 0.16
+Nodes (9): InMemorySystemRoleRepository, SystemRole, In-memory SystemRoleRepository — Phase 1 storage, used when PERMISSIONS_DATABASE, system_role_repo(), Direct tests for in-memory repository methods that no application service curre, test_list_restrictions_for_grantees_empty_when_none_match(), test_list_restrictions_for_grantees_filters_to_the_given_grantees(), test_revoke_system_role_is_a_no_op_for_a_user_with_no_roles() (+1 more)
 
 ### Community 22 - "Data Model & Repository Docs"
 Cohesion: 0.18
@@ -252,6 +252,10 @@ Nodes (15): auth_headers(), test_external_access_filters_out_none_but_totals_all
 ### Community 23 - "Icon Sprite Assets"
 Cohesion: 0.43
 Nodes (7): Bluesky icon (social link, butterfly logo), Discord icon (social link, game-controller/robot-face logo), Documentation icon (open book / doc outline), GitHub icon (Octocat mark), Social/people icon (two-person avatar with sparkle badge), icons.svg (frontend icon sprite sheet), X (Twitter) icon
+
+### Community 24 - "Delegation Rule Docs"
+Cohesion: 0.18
+Nodes (7): AccessSnapshot, Role, The one place effective role is computed. Never re-implement this resolution lo, Ties among multiple grants (or restriction entries) at the nearest         ance, A user's full grant set, pre-indexed for O(1) lookups. Grants come from     the, True when effective_role() can never return None for this caller:         both, Every resource where the caller holds a grant or a restriction-         whiteli
 
 ### Community 25 - "Frontend Stack Docs"
 Cohesion: 0.50
@@ -301,13 +305,13 @@ Nodes (16): create_resource(), create_team_workspace(), delete_resource(), get_m
 Cohesion: 0.13
 Nodes (25): getGrantsForResource(), Grant, GranteeType, Me, MockUser, Restriction, setGrant(), Team (+17 more)
 
-### Community 57 - "unit/conftest.py"
-Cohesion: 0.31
-Nodes (8): Records grant/revoke actions append-only. Kept as a collaborator that Permission, _entry(), Exercises SqlAlchemyAuditLogRepository against real Postgres, including _pagina, test_append_then_list_for_resource(), test_list_for_actor_filters_by_actor(), test_list_for_resource_orders_newest_first(), test_list_for_resource_paginates(), datetime
-
-### Community 58 - "env.py"
+### Community 57 - "AuthenticatedUser"
 Cohesion: 0.45
 Nodes (5): AuditService, Role, `role` is the NEW role the grantee ends up with., `role` is the NEW role the restriction entry ends up with., AuthenticatedUser
+
+### Community 58 - "env.py"
+Cohesion: 0.18
+Nodes (7): AuditLogEntry, InMemoryAuditLogRepository, In-memory AuditLogRepository — Phase 1 storage, used when PERMISSIONS_DATABASE_U, PostgreSQL-backed AuditLogRepository, used when PERMISSIONS_DATABASE_URL is set., SqlAlchemyAuditLogRepository, _to_domain(), audit_log_repo()
 
 ### Community 59 - "build_engine_and_sessionmaker"
 Cohesion: 0.20
@@ -318,20 +322,20 @@ Cohesion: 0.17
 Nodes (20): get_current_user(), delete_grant(), _ensure_resource_exists(), list_grants_for_resource(), list_manageable_users(), Depends, GranteeTypePath, Response (+12 more)
 
 ### Community 61 - "AdfsAuthMockTokenIssuer"
-Cohesion: 0.18
-Nodes (7): AuditLogEntry, InMemoryAuditLogRepository, In-memory AuditLogRepository — Phase 1 storage, used when PERMISSIONS_DATABASE_U, PostgreSQL-backed AuditLogRepository, used when PERMISSIONS_DATABASE_URL is set., SqlAlchemyAuditLogRepository, _to_domain(), audit_log_repo()
+Cohesion: 0.33
+Nodes (5): paginate(), AsyncSession, Shared offset/limit + count logic for every SQLAlchemy repo that pages a `select, M, Select
 
 ### Community 65 - "Role"
 Cohesion: 0.31
 Nodes (19): get_access_resolver(), get_access_transparency_service(), get_auth_service(), get_catalog_service(), get_grant_repository(), get_org_hierarchy(), get_permission_grant_service(), get_resource_repository() (+11 more)
 
-### Community 66 - "AccessTransparencyService"
-Cohesion: 0.20
-Nodes (9): access_resolver(), access_transparency_service(), audit_service(), catalog_service(), permission_grant_service(), resource_repo(), resource_service(), restriction_repo() (+1 more)
+### Community 66 - "AuthService"
+Cohesion: 0.18
+Nodes (5): AuthService, Admin-only, same rank as move()'s source-resource check — deleting         is a, NotFoundError, test_explicit_code_and_params_override_the_default(), test_params_are_not_shared_between_instances()
 
-### Community 67 - "check_access"
-Cohesion: 0.29
-Nodes (9): audit_for_actor(), audit_for_resource(), Depends, Read-only endpoints over the append-only audit log., _to_out(), AuditLogEntryOut, AuditLogPageOut, BaseModel (+1 more)
+### Community 67 - "AuditLogRepository"
+Cohesion: 0.20
+Nodes (6): get_audit_log_repository(), get_audit_service(), AuditLogRepository, Protocol, Append-only audit trail port — no update/delete method by design., Newest-first. Append-only — no update/delete method on this port,         by de
 
 ### Community 68 - ".__init__"
 Cohesion: 0.20
@@ -417,9 +421,9 @@ Nodes (12): _find(), _grant_user(), _move(), test_admin_at_source_and_editor_at_
 Cohesion: 0.18
 Nodes (6): A grant can outlive its grantee's directory record (e.g. a since-     removed m, test_check_access_forbidden_when_actor_lacks_manager_role(), test_check_access_succeeds_when_actor_is_manager(), test_explain_access_marks_the_winning_source_effective(), test_list_admins_falls_back_to_id_when_directory_lookup_misses(), test_list_admins_resolves_team_display_name()
 
-### Community 91 - "get_catalog"
-Cohesion: 0.20
-Nodes (4): InMemoryTeamRepository, Team, In-memory TeamRepository — Phase 1 storage, used when PERMISSIONS_DATABASE_URL i, team_repo()
+### Community 91 - "audit_for_resource"
+Cohesion: 0.29
+Nodes (9): audit_for_actor(), audit_for_resource(), Depends, Read-only endpoints over the append-only audit log., _to_out(), AuditLogEntryOut, AuditLogPageOut, BaseModel (+1 more)
 
 ### Community 93 - "SystemRoleRepository"
 Cohesion: 0.29
@@ -433,21 +437,21 @@ Nodes (4): AdfsAuthMockTokenIssuer, Wraps adfs-auth's testing.MockTokenAcquirer 
 Cohesion: 0.20
 Nodes (10): CI, Configuration, Known limitations (deliberate, tracked in `PLAN.md`/`CLAUDE.md`), Permissions Server, Prerequisites, Project layout, Running with Docker, Running with PostgreSQL (one-time setup) (+2 more)
 
-### Community 96 - "test_auth_flow.py"
-Cohesion: 0.28
-Nodes (5): _HasIdAndName, InMemoryEntityRepository, Protocol, T, Generic in-memory implementation of EntityRepository, shared by the Resource and
+### Community 96 - "InMemoryTeamRepository"
+Cohesion: 0.20
+Nodes (4): InMemoryTeamRepository, Team, In-memory TeamRepository — Phase 1 storage, used when PERMISSIONS_DATABASE_URL i, team_repo()
 
 ### Community 97 - "_entry"
-Cohesion: 0.33
-Nodes (5): paginate(), AsyncSession, Shared offset/limit + count logic for every SQLAlchemy repo that pages a `select, M, Select
+Cohesion: 0.31
+Nodes (8): Records grant/revoke actions append-only. Kept as a collaborator that Permission, _entry(), Exercises SqlAlchemyAuditLogRepository against real Postgres, including _pagina, test_append_then_list_for_resource(), test_list_for_actor_filters_by_actor(), test_list_for_resource_orders_newest_first(), test_list_for_resource_paginates(), datetime
 
 ### Community 98 - "InMemoryEntityRepository"
 Cohesion: 0.29
 Nodes (7): Database Reference — Permissions Server, DB-backed test tier, Entity-relationship summary, Migrations, Requirements, Starting the database (one-time setup), Verifying the connection independent of the app
 
-### Community 100 - "AuditLogRepository"
-Cohesion: 0.48
-Nodes (6): _admin_of(), Regression guard: Map is structurally capable of having children     (Group/Lay, test_delete_empty_organizational_resource_succeeds(), test_delete_layer_with_no_children_succeeds(), test_delete_map_with_children_still_cascades(), test_delete_organizational_resource_with_children_is_conflict()
+### Community 100 - "unit/conftest.py"
+Cohesion: 0.20
+Nodes (9): access_resolver(), access_transparency_service(), audit_service(), catalog_service(), permission_grant_service(), resource_repo(), resource_service(), restriction_repo() (+1 more)
 
 ### Community 101 - "env.py"
 Cohesion: 0.53
@@ -457,21 +461,25 @@ Nodes (5): _do_run_migrations(), get_url(), run_migrations_offline(), run_migrat
 Cohesion: 0.50
 Nodes (3): AsyncClient, client(), A fresh app + in-memory state per test, talked to over real HTTP     semantics (
 
-### Community 105 - ".can_set_restriction"
+### Community 105 - "InMemoryEntityRepository"
+Cohesion: 0.28
+Nodes (5): _HasIdAndName, InMemoryEntityRepository, Protocol, T, Generic in-memory implementation of EntityRepository, shared by the Resource and
+
+### Community 106 - "plugins"
+Cohesion: 0.22
+Nodes (8): plugins, rules, react/only-export-components, react/rules-of-hooks, $schema, oxc, typescript, warn
+
+### Community 107 - ".set_restriction"
 Cohesion: 0.29
 Nodes (4): Restriction, Role, Rejects taking `grantee`'s Admin-role entry away — by removing it         (entr, Admin-only (NOT Manager, unlike ordinary grants where Manager         keeps its
 
-### Community 106 - "ApiError"
-Cohesion: 0.16
-Nodes (9): InMemorySystemRoleRepository, SystemRole, In-memory SystemRoleRepository — Phase 1 storage, used when PERMISSIONS_DATABASE, system_role_repo(), Direct tests for in-memory repository methods that no application service curre, test_list_restrictions_for_grantees_empty_when_none_match(), test_list_restrictions_for_grantees_filters_to_the_given_grantees(), test_revoke_system_role_is_a_no_op_for_a_user_with_no_roles() (+1 more)
+### Community 108 - "TokenIssuer"
+Cohesion: 0.29
+Nodes (4): Protocol, Issues bearer tokens — mocked now, real ADFS OIDC acquisition later., Issues a bearer token for a user. Only the mock auth flow implements this —, TokenIssuer
 
-### Community 107 - "TokenValidator"
-Cohesion: 0.33
-Nodes (4): Protocol, Validates bearer tokens — mocked now, real ADFS OIDC validation later., Validates a bearer token and returns who it belongs to.      Phase 2 swap poin, TokenValidator
-
-### Community 108 - "test_auth_flow.py"
-Cohesion: 0.50
-Nodes (3): Base, SQLAlchemy declarative base shared by every ORM model in infrastructure/db/model, DeclarativeBase
+### Community 109 - "ConflictError"
+Cohesion: 0.38
+Nodes (7): ConflictError, _owners_workspace_with_admin_grant(), Confirmed 2026-10-11: the owner is always Admin in their personal     workspace, test_nobody_can_lower_owners_grant_in_own_personal_workspace(), test_nobody_can_revoke_owners_grant_in_own_personal_workspace(), test_owner_grant_lock_covers_everything_inside_the_workspace(), test_owner_grant_lock_does_not_apply_to_others_or_shared_resources()
 
 ### Community 110 - "register_error_handlers"
 Cohesion: 0.22
@@ -485,25 +493,25 @@ Nodes (12): CatalogItem, CatalogService, ExternalAccessItem, Resource, Builds th
 Cohesion: 0.33
 Nodes (5): After this works, CI/CD Setup, How to verify it worked, Steps, Why it's needed
 
-### Community 114 - "AuthService"
-Cohesion: 0.18
-Nodes (5): AuthService, Admin-only, same rank as move()'s source-resource check — deleting         is a, NotFoundError, test_explicit_code_and_params_override_the_default(), test_params_are_not_shared_between_instances()
+### Community 114 - "OrgHierarchy"
+Cohesion: 0.29
+Nodes (4): OrgHierarchy, Protocol, Who manages whom — backs the org-chart delegation check on user grantees., Manager-chain lookups the delegation rule depends on. Both methods are     tran
 
 ### Community 115 - "Quick start (always DB/Postgres mode)"
 Cohesion: 0.50
 Nodes (4): Backend, Frontend, Quick start (always DB/Postgres mode), Try it
 
-### Community 116 - "access_resolver.py"
-Cohesion: 0.20
-Nodes (6): get_audit_log_repository(), get_audit_service(), AuditLogRepository, Protocol, Append-only audit trail port — no update/delete method by design., Newest-first. Append-only — no update/delete method on this port,         by de
+### Community 116 - "_admin_of"
+Cohesion: 0.48
+Nodes (6): _admin_of(), Regression guard: Map is structurally capable of having children     (Group/Lay, test_delete_empty_organizational_resource_succeeds(), test_delete_layer_with_no_children_succeeds(), test_delete_map_with_children_still_cascades(), test_delete_organizational_resource_with_children_is_conflict()
 
 ### Community 117 - ".nearest_grants"
 Cohesion: 0.25
 Nodes (6): Resource, Restriction, Walk from resource_id up to the tree root; return         (origin_resource_id,, The restriction twin of nearest_grants. Unlike grants, a node is         gated, Same restriction-then-grants precedence as effective_role(), but         collec, Nearest-ancestor-wins traversal shared by nearest_grants,         nearest_restr
 
-### Community 118 - "ResourceInfoPanel.tsx"
-Cohesion: 0.14
-Nodes (16): CatalogItem, createResource(), deleteGrant(), deleteResource(), getResourceAdmins(), GranteeInfo, roleAtLeast(), CreateResourceModal() (+8 more)
+### Community 118 - "TokenValidator"
+Cohesion: 0.33
+Nodes (4): Protocol, Validates bearer tokens — mocked now, real ADFS OIDC validation later., Validates a bearer token and returns who it belongs to.      Phase 2 swap poin, TokenValidator
 
 ### Community 119 - "AccessTransparencyService"
 Cohesion: 0.33
@@ -521,17 +529,9 @@ Nodes (4): Protocol, SystemRole, Kept separate from PermissionGrantRepository on
 Cohesion: 0.43
 Nodes (6): ExternalMapAccessOut, ExternalMyAccessPageOut, get_my_access(), BaseModel, Depends, The one endpoint other internal apps call to check a user's map access.
 
-### Community 123 - "TokenIssuer"
-Cohesion: 0.29
-Nodes (4): Protocol, Issues bearer tokens — mocked now, real ADFS OIDC acquisition later., Issues a bearer token for a user. Only the mock auth flow implements this —, TokenIssuer
-
-### Community 124 - "ConflictError"
-Cohesion: 0.38
-Nodes (7): ConflictError, _owners_workspace_with_admin_grant(), Confirmed 2026-10-11: the owner is always Admin in their personal     workspace, test_nobody_can_lower_owners_grant_in_own_personal_workspace(), test_nobody_can_revoke_owners_grant_in_own_personal_workspace(), test_owner_grant_lock_covers_everything_inside_the_workspace(), test_owner_grant_lock_does_not_apply_to_others_or_shared_resources()
-
-### Community 125 - "OrgHierarchy"
-Cohesion: 0.29
-Nodes (4): OrgHierarchy, Protocol, Who manages whom — backs the org-chart delegation check on user grantees., Manager-chain lookups the delegation rule depends on. Both methods are     tran
+### Community 123 - "Base"
+Cohesion: 0.50
+Nodes (3): Base, SQLAlchemy declarative base shared by every ORM model in infrastructure/db/model, DeclarativeBase
 
 ## Ambiguous Edges - Review These
 - `Documentation icon (open book / doc outline)` → `Social/people icon (two-person avatar with sparkle badge)`  [AMBIGUOUS]
@@ -547,11 +547,11 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **What is the exact relationship between `Documentation icon (open book / doc outline)` and `Social/people icon (two-person avatar with sparkle badge)`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `Grantee` connect `Permission Grant Domain & Tests` to `test_can_manage_true_for_non_subordinate_inside_own_personal_workspace`, `test_can_manage_false_for_non_subordinate_inside_someone_elses_personal_workspace`, `Grants Router & DI Wiring`, `In-Memory Repositories`, `App Bootstrap & JWT Issuer`, `Auth Service & Token Issuer`, `Auth Domain Ports`, `Error Handling`, `JWT Validator & Auth Tests`, `test_access_resolver.py`, `test_catalog_service.py`, `unit/conftest.py`, `env.py`, `build_engine_and_sessionmaker`, `get_catalog`, `AdfsAuthMockTokenIssuer`, `TeamModel`, `RestrictionService`, `InMemorySystemRoleRepository`, `load_mock_users`, `Resource`, `TokenValidator`, `AuditLogRepository`, `.can_set_restriction`, `.nearest_grants`, `AccessTransparencyService`, `test_revoke_succeeds_for_self_even_without_any_manage_authority`, `test_revoke_succeeds_for_self_regardless_of_org_chart_position`?**
+- **Why does `Grantee` connect `Permission Grant Domain & Tests` to `test_can_manage_true_for_non_subordinate_inside_own_personal_workspace`, `test_can_manage_false_for_non_subordinate_inside_someone_elses_personal_workspace`, `Grants Router & DI Wiring`, `In-Memory Repositories`, `Auth Service & Token Issuer`, `Auth Domain Ports`, `Error Handling`, `JWT Validator & Auth Tests`, `Delegation Rule Docs`, `test_access_resolver.py`, `test_catalog_service.py`, `AuthenticatedUser`, `env.py`, `build_engine_and_sessionmaker`, `get_catalog`, `TeamModel`, `RestrictionService`, `InMemorySystemRoleRepository`, `load_mock_users`, `Resource`, `TokenValidator`, `_entry`, `.set_restriction`, `_admin_of`, `.nearest_grants`, `AccessTransparencyService`, `test_revoke_succeeds_for_self_even_without_any_manage_authority`, `test_revoke_succeeds_for_self_regardless_of_org_chart_position`?**
   _High betweenness centrality (0.178) - this node is a cross-community bridge._
-- **Why does `AuthenticatedUser` connect `env.py` to `Permission Grant Domain & Tests`, `Grants Router & DI Wiring`, `Access Resolution Logic`, `JWT Validator & Auth Tests`, `External API Docs`, `Page`, `set_grant`, `lifespan`, `InMemoryTeamRepository`, `get_catalog`, `check_access`, `SystemRoleModel`, `InMemorySystemRoleRepository`, `RoleBadge.tsx`, `UserDirectory`, `Resource`, `get_my_access`, `.can_set_restriction`, `TokenValidator`, `AuthService`, `AccessTransparencyService`, `UserDirectory`, `get_my_access`, `TokenIssuer`?**
+- **Why does `AuthenticatedUser` connect `AuthenticatedUser` to `Permission Grant Domain & Tests`, `Grants Router & DI Wiring`, `Access Resolution Logic`, `JWT Validator & Auth Tests`, `External API Docs`, `Page`, `set_grant`, `lifespan`, `InMemoryTeamRepository`, `get_catalog`, `AuthService`, `SystemRoleModel`, `InMemorySystemRoleRepository`, `RoleBadge.tsx`, `UserDirectory`, `Resource`, `audit_for_resource`, `get_my_access`, `.set_restriction`, `TokenIssuer`, `TokenValidator`, `AccessTransparencyService`, `UserDirectory`, `get_my_access`?**
   _High betweenness centrality (0.089) - this node is a cross-community bridge._
-- **Why does `lifespan()` connect `RestrictionService` to `Catalog API & Schemas`, `In-Memory Repositories`, `InMemorySystemRoleRepository`, `ApiError`, `audit_for_resource`, `RoleBadge.tsx`, `Auth Service & Token Issuer`, `Auth Domain Ports`, `Auth API Router & Schemas`, `Architecture & Phase Overview`, `MockOrgHierarchy`, `lifespan`, `is_valid_child`, `get_catalog`, `AdfsAuthMockTokenIssuer`, `get_my_access`?**
+- **Why does `lifespan()` connect `RestrictionService` to `InMemoryTeamRepository`, `Catalog API & Schemas`, `In-Memory Repositories`, `InMemorySystemRoleRepository`, `Architecture & Phase Overview`, `audit_for_resource`, `RoleBadge.tsx`, `Auth Service & Token Issuer`, `Auth Domain Ports`, `Auth API Router & Schemas`, `MockOrgHierarchy`, `lifespan`, `is_valid_child`, `Frontend Lint Config`, `env.py`, `get_my_access`?**
   _High betweenness centrality (0.081) - this node is a cross-community bridge._
 - **Are the 60 inferred relationships involving `Grantee` (e.g. with `seed()` and `AccessResolver`) actually correct?**
   _`Grantee` has 60 INFERRED edges - model-reasoned connections that need verification._

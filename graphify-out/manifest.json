@@ -660,8 +660,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/RestrictionsModal.tsx": {
-    "mtime": 1791730505.5977433,
-    "ast_hash": "2ac47a08d07c32ce5353cd3d1d875eff",
+    "mtime": 1791733117.3947043,
+    "ast_hash": "57355471df747bf3c6b8c1f1d5f80fd9",
     "semantic_hash": ""
   },
   "backend/tests/integration/test_delete_resource.py": {

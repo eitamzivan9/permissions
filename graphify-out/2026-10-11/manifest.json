@@ -20,8 +20,8 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "backend/src/permissions_server/api/deps.py": {
-    "mtime": 1791730543.9461906,
-    "ast_hash": "611a60b9ac32c9be2124589ef95c8f31",
+    "mtime": 1791731716.8060431,
+    "ast_hash": "e1ca94f7877cb8d314a045f61b09bea3",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/error_handlers.py": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/routers/catalog_router.py": {
-    "mtime": 1791730543.9461906,
-    "ast_hash": "704e9c2a8436a28051ad5b989be42bf8",
+    "mtime": 1791731716.8060431,
+    "ast_hash": "ad7389faf2a08521d4c8a606e689a69a",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/routers/external_router.py": {
@@ -65,8 +65,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/schemas/catalog_schemas.py": {
-    "mtime": 1791730543.9461906,
-    "ast_hash": "a0238643ea037b7ead74c9f079e6b13c",
+    "mtime": 1791731716.8088565,
+    "ast_hash": "1945a29ef91c66946cdff8e160d23669",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/api/schemas/grant_schemas.py": {
@@ -90,8 +90,8 @@
     "semantic_hash": ""
   },
   "backend/src/permissions_server/application/catalog_service.py": {
-    "mtime": 1791730543.9461906,
-    "ast_hash": "b424b9e975b48413b5db9c390c26f7fa",
+    "mtime": 1791731716.8088565,
+    "ast_hash": "f1a87b222db3fd4386b3887e8004aa5c",
     "semantic_hash": ""
   },
   "backend/src/permissions_server/application/permission_grant_service.py": {
@@ -240,8 +240,8 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "backend/tests/unit/conftest.py": {
-    "mtime": 1791730543.9534247,
-    "ast_hash": "ac580d2d3b03ec7f05da5144f3ed07ff",
+    "mtime": 1791731716.8088565,
+    "ast_hash": "d5d56740a9bf94e66c79d5f21e8833eb",
     "semantic_hash": ""
   },
   "backend/tests/unit/test_access_resolver.py": {
@@ -255,8 +255,8 @@
     "semantic_hash": ""
   },
   "backend/tests/unit/test_catalog_service.py": {
-    "mtime": 1791730553.0992963,
-    "ast_hash": "c4cf3301f8b9bb4e78afc321aac2bae8",
+    "mtime": 1791731716.8088565,
+    "ast_hash": "1db3deec45af1181e18b6d03ed7782f9",
     "semantic_hash": ""
   },
   "backend/tests/unit/test_org_hierarchy_cycle_safety.py": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "frontend/src/api/client.ts": {
-    "mtime": 1791730581.864931,
-    "ast_hash": "c27e810427ad179595421413a439c4cf",
+    "mtime": 1791731717.1680582,
+    "ast_hash": "72b4abf72ef641d60233de7cbe81484d",
     "semantic_hash": ""
   },
   "frontend/src/auth/AuthContext.tsx": {
@@ -335,8 +335,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1791730180.613647,
-    "ast_hash": "2f6583689b3808219e0011fdd36959d5",
+    "mtime": 1791732546.9231586,
+    "ast_hash": "0436483646a894e5fc7d1fb91f183f21",
     "semantic_hash": ""
   },
   "frontend/README.md": {
@@ -565,8 +565,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/ResourceNode.tsx": {
-    "mtime": 1791731314.01464,
-    "ast_hash": "f54e0692042837ff252f4776203b15b6",
+    "mtime": 1791731717.1680582,
+    "ast_hash": "095106cd62bb4913915652ca9cac0992",
     "semantic_hash": ""
   },
   "frontend/src/components/RoleBadge.tsx": {
@@ -800,8 +800,8 @@
     "semantic_hash": ""
   },
   "frontend/src/i18n/en.ts": {
-    "mtime": 1791731134.1777098,
-    "ast_hash": "c806c69388136eb34ca23bdf0c85777b",
+    "mtime": 1791731717.1680582,
+    "ast_hash": "4c9ef2214329c3031ef9f5d7ccdc691e",
     "semantic_hash": ""
   },
   "frontend/src/i18n/format.ts": {
@@ -810,8 +810,8 @@
     "semantic_hash": ""
   },
   "frontend/src/i18n/he.ts": {
-    "mtime": 1791731134.31747,
-    "ast_hash": "3e8ebb1ff31e2b60696de6c1b6c9165a",
+    "mtime": 1791731717.1680582,
+    "ast_hash": "209032cb0cd9e66592be62fc00c00bba",
     "semantic_hash": ""
   },
   "frontend/src/i18n/labels.ts": {
@@ -855,8 +855,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/GlobeBackdrop.tsx": {
-    "mtime": 1791731340.491022,
-    "ast_hash": "7bb970228eac5a61faf9b77c9a2423f3",
+    "mtime": 1791731543.7558382,
+    "ast_hash": "c5f3c7097120b687910591fc3be9eb0a",
     "semantic_hash": ""
   },
   "frontend/src/components/GranteeName.tsx": {
