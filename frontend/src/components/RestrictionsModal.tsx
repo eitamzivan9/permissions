@@ -11,6 +11,7 @@ import {
 } from "../api/client";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ROLE_LABEL_KEYS } from "../i18n/labels";
+import RoleSelect from "./RoleSelect";
 
 interface RestrictionsModalProps {
   resourceId: string;
@@ -88,21 +89,30 @@ export default function RestrictionsModal({
     setSelectedGranteeId(options[0]?.id ?? "");
   }
 
-  async function handleApply() {
+  function handleApply() {
     if (!selectedGranteeId) return;
+    return applyRestriction(granteeType, selectedGranteeId, selectedRole, "restrictions.addSuccess");
+  }
+
+  function restrictionGranteeId(restriction: Restriction): string {
+    return (restriction.grantee_type === "user" ? restriction.user_id : restriction.team_id) ?? "";
+  }
+
+  // Shared by the "Add to whitelist" form and the per-row role dropdown —
+  // changing an entry's role is the same upsert (the backend re-checks
+  // authority and the last-Admin guard either way).
+  async function applyRestriction(
+    type: GranteeType,
+    granteeId: string,
+    role: Role,
+    successKey: "restrictions.addSuccess" | "restrictions.roleChanged",
+  ) {
     setIsSubmitting(true);
     setActionError(null);
     setSuccessMessage(null);
     try {
-      await setRestriction({
-        resourceId,
-        granteeType,
-        granteeId: selectedGranteeId,
-        role: selectedRole,
-      });
-      setSuccessMessage(
-        t("restrictions.addSuccess", { role: t(ROLE_LABEL_KEYS[selectedRole]) }),
-      );
+      await setRestriction({ resourceId, granteeType: type, granteeId, role });
+      setSuccessMessage(t(successKey, { role: t(ROLE_LABEL_KEYS[role]) }));
       onChanged();
       loadAll();
     } catch (error: unknown) {
@@ -120,8 +130,7 @@ export default function RestrictionsModal({
       await deleteRestriction({
         resourceId,
         granteeType: restriction.grantee_type,
-        granteeId:
-          (restriction.grantee_type === "user" ? restriction.user_id : restriction.team_id) ?? "",
+        granteeId: restrictionGranteeId(restriction),
       });
       setSuccessMessage(t("restrictions.removeSuccess"));
       onChanged();
@@ -248,7 +257,18 @@ export default function RestrictionsModal({
                         {granteeLabel(restriction)}
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
-                        <span className="text-slate-500">{t(ROLE_LABEL_KEYS[restriction.role])}</span>
+                        <RoleSelect
+                          role={restriction.role}
+                          disabled={isSubmitting}
+                          onChange={(role) =>
+                            void applyRestriction(
+                              restriction.grantee_type,
+                              restrictionGranteeId(restriction),
+                              role,
+                              "restrictions.roleChanged",
+                            )
+                          }
+                        />
                         <button
                           type="button"
                           onClick={() => handleRevoke(restriction)}

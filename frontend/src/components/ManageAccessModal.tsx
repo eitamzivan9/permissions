@@ -10,6 +10,7 @@ import {
 } from "../api/client";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ROLE_LABEL_KEYS } from "../i18n/labels";
+import RoleSelect from "./RoleSelect";
 
 interface ManageAccessModalProps {
   resourceId: string;
@@ -80,16 +81,25 @@ export default function ManageAccessModal({
     setSelectedGranteeId(options[0]?.id ?? "");
   }
 
-  async function handleApply() {
+  function handleApply() {
     if (!selectedGranteeId) return;
+    return applyGrant(granteeType, selectedGranteeId, selectedRole);
+  }
+
+  function grantGranteeId(grant: Grant): string {
+    return (grant.grantee_type === "user" ? grant.user_id : grant.team_id) ?? "";
+  }
+
+  // Shared by the "Grant access" form and the per-row role dropdown — changing
+  // an existing grant's role is the same upsert (the backend logs it as a
+  // ROLE_CHANGE and re-checks the actor's authority either way).
+  async function applyGrant(type: GranteeType, granteeId: string, role: Role) {
     setIsSubmitting(true);
     setActionError(null);
     setSuccessMessage(null);
     try {
-      await setGrant({ resourceId, granteeType, granteeId: selectedGranteeId, role: selectedRole });
-      setSuccessMessage(
-        t("manageAccess.setSuccess", { role: t(ROLE_LABEL_KEYS[selectedRole]) }),
-      );
+      await setGrant({ resourceId, granteeType: type, granteeId, role });
+      setSuccessMessage(t("manageAccess.setSuccess", { role: t(ROLE_LABEL_KEYS[role]) }));
       onChanged();
       loadAll();
     } catch (error: unknown) {
@@ -107,7 +117,7 @@ export default function ManageAccessModal({
       await deleteGrant({
         resourceId,
         granteeType: grant.grantee_type,
-        granteeId: (grant.grantee_type === "user" ? grant.user_id : grant.team_id) ?? "",
+        granteeId: grantGranteeId(grant),
       });
       setSuccessMessage(t("manageAccess.revokeSuccess"));
       onChanged();
@@ -180,15 +190,32 @@ export default function ManageAccessModal({
                         {granteeLabel(grant)}
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
-                        <span className="text-slate-500">{t(ROLE_LABEL_KEYS[grant.role])}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRevoke(grant)}
-                          disabled={isSubmitting}
-                          className="text-xs font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {t("manageAccess.revoke")}
-                        </button>
+                        {/* A locked (workspace owner) grant is always Admin. */}
+                        <RoleSelect
+                          role={grant.role}
+                          disabled={isSubmitting || grant.locked}
+                          title={grant.locked ? t("manageAccess.ownerLocked") : undefined}
+                          onChange={(role) =>
+                            void applyGrant(grant.grantee_type, grantGranteeId(grant), role)
+                          }
+                        />
+                        {grant.locked ? (
+                          <span
+                            title={t("manageAccess.ownerLocked")}
+                            className="text-xs font-medium text-slate-500"
+                          >
+                            {t("manageAccess.owner")}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleRevoke(grant)}
+                            disabled={isSubmitting}
+                            className="text-xs font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {t("manageAccess.revoke")}
+                          </button>
+                        )}
                       </span>
                     </li>
                   ))}

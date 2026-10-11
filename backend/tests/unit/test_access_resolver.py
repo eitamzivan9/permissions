@@ -312,3 +312,49 @@ async def test_nearest_admins_uses_restriction_whitelist_when_restricted(
         OTHER_USER_GRANTEE, MAP_ID, Role.VIEWER, granted_by="admin"
     )
     assert await access_resolver.nearest_admins(MAP_ID) == [admin_entry]
+
+
+async def _personal_workspace_with_folder(resource_repo, owner_id):
+    workspace = await resource_repo.create(
+        type=ResourceType.WORKSPACE, name="Owner's Workspace", parent_id=None, owner_id=owner_id
+    )
+    folder = await resource_repo.create(
+        type=ResourceType.FOLDER, name="Inner", parent_id=workspace.id
+    )
+    return workspace, folder
+
+
+async def test_owner_is_admin_everywhere_in_personal_workspace_without_any_grant(
+    access_resolver, resource_repo
+):
+    """Confirmed 2026-10-11: a personal workspace's owner is always Admin on
+    it and everything inside it, independent of any grant row."""
+    workspace, folder = await _personal_workspace_with_folder(resource_repo, USER)
+    assert await access_resolver.effective_role(workspace.id, user_id=USER) is Role.ADMIN
+    assert await access_resolver.effective_role(folder.id, user_id=USER) is Role.ADMIN
+
+
+async def test_restriction_cannot_lock_owner_out_of_own_personal_workspace(
+    access_resolver, resource_repo, restriction_repo
+):
+    _, folder = await _personal_workspace_with_folder(resource_repo, USER)
+    await restriction_repo.upsert_restriction(
+        Grantee(GranteeType.USER, user_id="u099"), folder.id, Role.ADMIN, granted_by="u099"
+    )
+    assert await access_resolver.effective_role(folder.id, user_id=USER) is Role.ADMIN
+    # Everyone else is still gated by that restriction as usual.
+    assert await access_resolver.effective_role(folder.id, user_id="u050") is None
+
+
+async def test_nearest_admins_always_lists_personal_workspace_owner_first(
+    access_resolver, resource_repo, restriction_repo, grant_repo
+):
+    _, folder = await _personal_workspace_with_folder(resource_repo, USER)
+    other_admin = Grantee(GranteeType.USER, user_id="u099")
+    await restriction_repo.upsert_restriction(other_admin, folder.id, Role.ADMIN, granted_by="u099")
+    assert await access_resolver.nearest_admins(folder.id) == [USER_GRANTEE, other_admin]
+
+    # The owner's own Admin grant isn't listed twice.
+    await restriction_repo.delete_restriction(other_admin, folder.id)
+    await grant_repo.upsert_grant(USER_GRANTEE, folder.id, Role.ADMIN, granted_by=USER)
+    assert await access_resolver.nearest_admins(folder.id) == [USER_GRANTEE]

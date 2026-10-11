@@ -8,6 +8,7 @@ from permissions_server.application.audit_service import AuditService
 from permissions_server.application.delegation_rules import (
     grantee_passes_org_chart_check,
     is_within_actors_personal_workspace,
+    personal_workspace_owner_id,
 )
 from permissions_server.domain.entities import (
     AuthenticatedUser,
@@ -18,7 +19,7 @@ from permissions_server.domain.entities import (
     SystemRole,
     role_rank,
 )
-from permissions_server.domain.errors import ForbiddenError
+from permissions_server.domain.errors import ConflictError, ForbiddenError
 from permissions_server.domain.ports.grant_repository import PermissionGrantRepository
 from permissions_server.domain.ports.org_hierarchy import OrgHierarchy
 from permissions_server.domain.ports.resource_repository import ResourceRepository
@@ -72,6 +73,24 @@ class PermissionGrantService:
             self._org_hierarchy, self._resource_repository, actor.id, grantee, resource_id
         )
 
+    async def is_owner_grant(self, grantee: Grantee, resource_id: str) -> bool:
+        """True when grantee is the owner of the personal workspace
+        resource_id lives in. That owner is always Admin there (see
+        AccessResolver.effective_role), so their grants inside it are locked:
+        nobody — not even the owner or a SUPER_EDITOR — may lower or revoke
+        them (confirmed 2026-10-11)."""
+        return grantee.grantee_type is GranteeType.USER and grantee.user_id == (
+            await personal_workspace_owner_id(self._resource_repository, resource_id)
+        )
+
+    async def _ensure_not_owner_grant(self, grantee: Grantee, resource_id: str) -> None:
+        if await self.is_owner_grant(grantee, resource_id):
+            raise ConflictError(
+                f"{grantee} owns the personal workspace containing {resource_id} "
+                "and is always Admin there",
+                code="owner_grant_locked",
+            )
+
     async def grant(
         self,
         actor: AuthenticatedUser,
@@ -79,6 +98,8 @@ class PermissionGrantService:
         resource_id: str,
         role: Role,
     ) -> PermissionGrant:
+        if role is not Role.ADMIN:
+            await self._ensure_not_owner_grant(grantee, resource_id)
         if not await self.can_manage(actor, grantee, resource_id, role):
             raise ForbiddenError(
                 f"{actor.id} may not grant {role.value} on {resource_id} to {grantee}"
@@ -99,6 +120,7 @@ class PermissionGrantService:
         existing = await self._grant_repository.get_grant(grantee, resource_id)
         if existing is None:
             return
+        await self._ensure_not_owner_grant(grantee, resource_id)
 
         is_self_revocation = (
             grantee.grantee_type is GranteeType.USER and grantee.user_id == actor.id

@@ -72,6 +72,8 @@ export interface Grant {
   resource_id: string;
   role: Role;
   granted_by: string;
+  /** A personal workspace owner's own grant inside it — always Admin, can't be changed or revoked. */
+  locked: boolean;
 }
 
 export interface SetGrantParams {

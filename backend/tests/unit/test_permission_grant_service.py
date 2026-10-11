@@ -9,7 +9,7 @@ from permissions_server.domain.entities import (
     Role,
     SystemRole,
 )
-from permissions_server.domain.errors import ForbiddenError
+from permissions_server.domain.errors import ConflictError, ForbiddenError
 
 MAP_ID = "map-city-roads"
 LAYER_ID = "layer-roads-bike"
@@ -334,3 +334,77 @@ async def test_bootstrap_admin_grant_records_role_change_when_non_admin_grant_ex
         e.grantee == SUBORDINATE_GRANTEE and e.action is AuditAction.ROLE_CHANGE
         for e in history.items
     )
+
+
+OWNER = AuthenticatedUser(id="u031", name="Pavel Nowak", email="pavel.nowak@geoteam.example")
+OWNER_GRANTEE = Grantee(GranteeType.USER, user_id=OWNER.id)
+
+
+async def _owners_workspace_with_admin_grant(resource_repo, grant_repo):
+    workspace = await resource_repo.create(
+        type=ResourceType.WORKSPACE, name="Pavel's Workspace", parent_id=None, owner_id=OWNER.id
+    )
+    await grant_repo.upsert_grant(OWNER_GRANTEE, workspace.id, Role.ADMIN, granted_by="system")
+    return workspace
+
+
+@pytest.mark.parametrize("role", [Role.VIEWER, Role.EDITOR, Role.MANAGER])
+async def test_nobody_can_lower_owners_grant_in_own_personal_workspace(
+    permission_grant_service, resource_repo, grant_repo, system_role_repo, role
+):
+    """Confirmed 2026-10-11: the owner is always Admin in their personal
+    workspace — not even the owner or a SUPER_EDITOR may lower that grant."""
+    workspace = await _owners_workspace_with_admin_grant(resource_repo, grant_repo)
+    await system_role_repo.grant_system_role(ACTOR.id, SystemRole.SUPER_EDITOR, granted_by="test")
+
+    for actor in (OWNER, ACTOR):
+        with pytest.raises(ConflictError) as error:
+            await permission_grant_service.grant(actor, OWNER_GRANTEE, workspace.id, role)
+        assert error.value.code == "owner_grant_locked"
+    assert (await grant_repo.get_grant(OWNER_GRANTEE, workspace.id)).role is Role.ADMIN
+
+
+async def test_nobody_can_revoke_owners_grant_in_own_personal_workspace(
+    permission_grant_service, resource_repo, grant_repo, system_role_repo
+):
+    workspace = await _owners_workspace_with_admin_grant(resource_repo, grant_repo)
+    await system_role_repo.grant_system_role(ACTOR.id, SystemRole.SUPER_EDITOR, granted_by="test")
+
+    for actor in (OWNER, ACTOR):  # self-revocation included
+        with pytest.raises(ConflictError) as error:
+            await permission_grant_service.revoke(actor, OWNER_GRANTEE, workspace.id)
+        assert error.value.code == "owner_grant_locked"
+    assert await grant_repo.get_grant(OWNER_GRANTEE, workspace.id) is not None
+
+
+async def test_owner_grant_lock_covers_everything_inside_the_workspace(
+    permission_grant_service, resource_repo, grant_repo
+):
+    workspace = await _owners_workspace_with_admin_grant(resource_repo, grant_repo)
+    folder = await resource_repo.create(
+        type=ResourceType.FOLDER, name="Inner", parent_id=workspace.id
+    )
+    await grant_repo.upsert_grant(OWNER_GRANTEE, folder.id, Role.ADMIN, granted_by=OWNER.id)
+
+    assert await permission_grant_service.is_owner_grant(OWNER_GRANTEE, folder.id) is True
+    with pytest.raises(ConflictError):
+        await permission_grant_service.revoke(OWNER, OWNER_GRANTEE, folder.id)
+    # Re-granting Admin is allowed (a no-op), it's only lowering that's locked.
+    granted = await permission_grant_service.grant(OWNER, OWNER_GRANTEE, folder.id, Role.ADMIN)
+    assert granted.role is Role.ADMIN
+
+
+async def test_owner_grant_lock_does_not_apply_to_others_or_shared_resources(
+    permission_grant_service, resource_repo, grant_repo
+):
+    workspace = await _owners_workspace_with_admin_grant(resource_repo, grant_repo)
+    # Someone else inside the owner's workspace: changeable as usual.
+    assert await permission_grant_service.is_owner_grant(SUBORDINATE_GRANTEE, workspace.id) is False
+    assert await permission_grant_service.is_owner_grant(TEAM_GRANTEE, workspace.id) is False
+    granted = await permission_grant_service.grant(
+        OWNER, SUBORDINATE_GRANTEE, workspace.id, Role.VIEWER
+    )
+    assert granted.role is Role.VIEWER
+    await permission_grant_service.revoke(OWNER, SUBORDINATE_GRANTEE, workspace.id)
+    # The owner's grants outside their personal workspace aren't locked.
+    assert await permission_grant_service.is_owner_grant(OWNER_GRANTEE, MAP_ID) is False

@@ -268,11 +268,19 @@ after `SUPER_EDITOR`, before the restriction lookup even runs) — confirmed 202
 both system-wide roles are "greater than any [resource-level] permission," including
 restrictions; `SUPER_VIEWER` just resolves to Viewer instead of Admin. (Prior to
 2026-07-31 this was the opposite — only `SUPER_EDITOR` bypassed — see git history on
-`access_resolver.py` if that matters.) **Exception, also confirmed 2026-07-31**:
-`SUPER_VIEWER`'s Viewer-cap does NOT apply inside the actor's own personal workspace —
-there, resolution falls through normally to their own bootstrap Admin grant, so being
-made `SUPER_VIEWER` never demotes someone in their own sandbox. `SUPER_EDITOR` needed
-no equivalent carve-out (Admin is already the ceiling everywhere).
+`access_resolver.py` if that matters.)
+
+**Personal workspace owner is always Admin (confirmed 2026-10-11 — supersedes the
+2026-07-31 "falls through to their bootstrap grant" carve-out)**: `effective_role()`
+returns Admin for the owner on their personal workspace and everything inside it, right
+after the `SUPER_EDITOR` check — before `SUPER_VIEWER`, restrictions, and grants, so no
+restriction can lock an owner out of their own sandbox and `SUPER_VIEWER` never caps
+them there. Their grants inside it are locked too: `PermissionGrantService.grant()`
+(any role but Admin) and `revoke()` (including self-revocation) reject them with 409
+`owner_grant_locked` — for everyone, the owner and `SUPER_EDITOR` included.
+`GET /grants/{id}` flags such rows `locked: true`, and `ManageAccessModal.tsx` renders
+them with a disabled role picker and an "Owner" label in place of Revoke.
+`nearest_admins()` always lists the owner first.
 
 Only Admin (or `SUPER_EDITOR`) may set/revoke a restriction —
 `RestrictionService.can_set_restriction`, never Manager — via
@@ -289,7 +297,10 @@ listed, so setting a restriction can never lock the setting admin out of their o
 first restriction. `revoke_restriction()` enforces the inverse invariant: removing an
 `Admin`-role restriction entry is rejected (409 `ConflictError`) if doing so would
 leave the resource STILL gated (other restriction rows remain) with zero `Admin`-role
-entries left — "we don't want orphaned object access." Removing the truly last
+entries left — "we don't want orphaned object access." `set_restriction()` applies the
+same guard (shared `_ensure_not_orphaned()`) to *demoting* the last `Admin` entry —
+added 2026-10-11 alongside the whitelist's per-row role picker; a demoted entry keeps
+the resource gated by itself, so this is rejected even when it's the only row. Removing the truly last
 restriction row overall is always allowed, even if it's `Admin`-role — that's a full
 unrestrict (falls back to ordinary grants), not an orphan, and `RestrictionsModal.tsx`'s
 "Clear all" needs to be able to reach zero (it loops single deletes sequentially, not
@@ -342,7 +353,9 @@ drag handle when applicable) plus that single info button; clicking it opens
 whichever actions currently apply: "+ Create" (`CreateResourceModal.tsx`, Folder only —
 see "Resource creation..." above) at Editor+; "Manage access" (`ManageAccessModal.tsx`)
 where `can_manage` is true (Manager or Admin); "Restrictions" (`RestrictionsModal.tsx`)
-at Admin only; "Delete" (Workspace/Folder/Group, Admin, empty-only — a non-empty one
+at Admin only — in both modals each existing row's role is changed in place via the
+shared `RoleSelect.tsx` dropdown (same upsert as the add form below it; the server
+re-checks authority and rejected changes snap back); "Delete" (Workspace/Folder/Group, Admin, empty-only — a non-empty one
 shows a disabled note instead, never an offered-then-failing button) or "Remove access"
 (Map/Layer, any role that holds one) instead of Delete. Move is not in this panel at
 all — it's drag-and-drop only, directly on the row (see "Resource creation..." above).
@@ -409,7 +422,8 @@ returned to the UI is a display hint only, never a trust boundary.
 **Self-revocation exception (confirmed with the project owner)**: `revoke()` allows an
 actor to drop their OWN grant (`grantee.user_id == actor.id`) unconditionally —
 regardless of role-rank or org-chart position — since "remove my own access" isn't
-delegation to anyone. Deliberately **not** folded into `can_manage()` itself:
+delegation to anyone. (One exception: a personal workspace owner's own grants inside
+it are locked — see "Personal workspace owner is always Admin" above.) Deliberately **not** folded into `can_manage()` itself:
 `can_manage()` is shared with `grant()`, and bypassing role-rank there would let a
 low-rank grantee self-*escalate*, not just self-revoke — kept as its own explicit
 branch in `revoke()` instead. This is what powers the frontend's "Remove access"

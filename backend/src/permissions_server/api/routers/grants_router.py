@@ -32,7 +32,9 @@ def _to_grantee(grantee_type: GranteeTypePath, grantee_id: str) -> Grantee:
     return Grantee(GranteeType.TEAM, team_id=grantee_id)
 
 
-def _to_out(grant: PermissionGrant) -> GrantOut:
+async def _to_out(
+    grant: PermissionGrant, permission_grant_service: PermissionGrantService
+) -> GrantOut:
     return GrantOut(
         grantee_type=grant.grantee.grantee_type.value,
         user_id=grant.grantee.user_id,
@@ -40,6 +42,7 @@ def _to_out(grant: PermissionGrant) -> GrantOut:
         resource_id=grant.resource_id,
         role=grant.role,
         granted_by=grant.granted_by,
+        locked=await permission_grant_service.is_owner_grant(grant.grantee, grant.resource_id),
     )
 
 
@@ -91,9 +94,12 @@ async def list_grants_for_resource(
     resource_id: str,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     grant_repository: Annotated[PermissionGrantRepository, Depends(get_grant_repository)],
+    permission_grant_service: Annotated[
+        PermissionGrantService, Depends(get_permission_grant_service)
+    ],
 ) -> list[GrantOut]:
     grants = await grant_repository.list_grants_for_resource(resource_id)
-    return [_to_out(g) for g in grants]
+    return [await _to_out(g, permission_grant_service) for g in grants]
 
 
 @router.put(
@@ -106,7 +112,9 @@ async def list_grants_for_resource(
         "`user` grantee, the caller must also be transitively above them in the org "
         "chart, unless the resource sits inside the caller's own personal workspace. "
         "A re-grant of the exact same role is a no-op and logs nothing to the audit "
-        "trail."
+        "trail. A personal workspace owner's own grant inside that workspace is "
+        "locked (409 `owner_grant_locked` for any role but Admin) — they're always "
+        "Admin there."
     ),
 )
 async def set_grant(
@@ -123,7 +131,7 @@ async def set_grant(
     await _ensure_resource_exists(resource_id, resource_repository)
     grantee = _to_grantee(grantee_type, grantee_id)
     grant = await permission_grant_service.grant(current_user, grantee, resource_id, body.role)
-    return _to_out(grant)
+    return await _to_out(grant, permission_grant_service)
 
 
 @router.delete(
@@ -134,7 +142,9 @@ async def set_grant(
         "Same authorization as PUT, EXCEPT an actor may always revoke their OWN "
         "user grant, regardless of role-rank or org-chart position — 'remove my own "
         "access' isn't delegation to anyone. This is what powers the frontend's "
-        "'Remove access' action on Map/Layer nodes."
+        "'Remove access' action on Map/Layer nodes. A personal workspace owner's own "
+        "grant inside that workspace can't be revoked by anyone (409 "
+        "`owner_grant_locked`)."
     ),
 )
 async def delete_grant(

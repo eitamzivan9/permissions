@@ -194,3 +194,41 @@ async def test_revoke_non_admin_restriction_never_blocked_by_last_admin_guard(
 
     assert await restriction_repo.get_restriction(OTHER_USER_GRANTEE, resource.id) is None
     assert await restriction_repo.get_restriction(admin_grantee, resource.id) is not None
+
+
+@pytest.mark.parametrize("other_entry", [False, True])
+async def test_demoting_the_last_admin_restriction_entry_is_conflict(
+    restriction_service, restriction_repo, grant_repo, resource, other_entry
+):
+    """Changing the last Admin entry's role (the whitelist's role dropdown)
+    orphans the resource just like removing it would — and since the
+    demoted entry itself stays, the resource stays gated even when it's the
+    only row."""
+    await _make_admin(grant_repo, ADMIN, resource.id)
+    admin_grantee = Grantee(GranteeType.USER, user_id=ADMIN.id)
+    await restriction_service.set_restriction(ADMIN, admin_grantee, resource.id, Role.ADMIN)
+    if other_entry:
+        await restriction_service.set_restriction(
+            ADMIN, OTHER_USER_GRANTEE, resource.id, Role.VIEWER
+        )
+
+    with pytest.raises(ConflictError) as exc_info:
+        await restriction_service.set_restriction(ADMIN, admin_grantee, resource.id, Role.EDITOR)
+    assert exc_info.value.code == "last_admin_restriction"
+    assert (await restriction_repo.get_restriction(admin_grantee, resource.id)).role is Role.ADMIN
+
+
+async def test_demoting_an_admin_restriction_entry_succeeds_when_another_admin_remains(
+    restriction_service, restriction_repo, grant_repo, resource
+):
+    await _make_admin(grant_repo, ADMIN, resource.id)
+    admin_grantee = Grantee(GranteeType.USER, user_id=ADMIN.id)
+    await restriction_service.set_restriction(ADMIN, admin_grantee, resource.id, Role.ADMIN)
+    await restriction_service.set_restriction(ADMIN, OTHER_USER_GRANTEE, resource.id, Role.ADMIN)
+
+    await restriction_service.set_restriction(
+        ADMIN, OTHER_USER_GRANTEE, resource.id, Role.VIEWER
+    )
+    assert (
+        await restriction_repo.get_restriction(OTHER_USER_GRANTEE, resource.id)
+    ).role is Role.VIEWER

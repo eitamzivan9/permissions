@@ -164,8 +164,21 @@ class AccessResolver:
         nearest ancestor with any explicit grant at all — an ancestor
         further up having an Admin grant doesn't count if a nearer node's
         grants override it, same as effective_role would resolve for any
-        one of those grantees."""
+        one of those grantees. A personal workspace's owner is always listed
+        first, since they're always Admin there (effective_role step 2)."""
         path = await self._resource_repository.path_to_root(resource_id)
+        owner = (
+            Grantee(GranteeType.USER, user_id=path[0].owner_id)
+            if path and path[0].owner_id is not None
+            else None
+        )
+        admins = [owner] if owner else []
+        for grantee in await self._resolved_admins(resource_id, path):
+            if grantee != owner:
+                admins.append(grantee)
+        return admins
+
+    async def _resolved_admins(self, resource_id: str, path: list[Resource]) -> list[Grantee]:
         restriction = await self.nearest_restriction(resource_id, path=path)
         if restriction is not None:
             _, entries = restriction
@@ -191,21 +204,21 @@ class AccessResolver:
         ("last one wins") instead; do not change this without the user's say. Precedence:
         1. SUPER_EDITOR bypasses everything, including restrictions, resolving
            to Role.ADMIN unconditionally.
-        2. SUPER_VIEWER also bypasses everything, including restrictions
+        2. A personal workspace's owner is always Admin on it and everything
+           inside it — no grant, revoke, or restriction can lower that
+           (confirmed 2026-10-11). This also means a SUPER_VIEWER is never
+           capped to Viewer inside their own personal workspace.
+        3. SUPER_VIEWER also bypasses everything, including restrictions
            (confirmed 2026-07-31 — both system-wide roles are "greater than
            any [resource-level] permission," restrictions included), resolving
-           to Role.VIEWER — EXCEPT inside the actor's own personal workspace
-           (confirmed 2026-07-31): there they're just a normal Admin via their
-           own bootstrap grant, same as anyone else's personal workspace owner,
-           not artificially capped by a system role meant to apply everywhere
-           ELSE. Resolution falls through to steps 3-4 normally in that case.
-        3. A restriction at the nearest ancestor (inclusive) that has any
+           to Role.VIEWER.
+        4. A restriction at the nearest ancestor (inclusive) that has any
            restriction row gates access completely: an actor not listed
            there gets None regardless of any grant they hold there or above
            (even an Admin grant); a listed actor gets the highest-rank
            matching entry's role. This fully short-circuits ordinary grant
            resolution below.
-        4. Otherwise, today's unchanged nearest-grant resolution.
+        5. Otherwise, today's unchanged nearest-grant resolution.
         Pass a precomputed `snapshot` when resolving many resources for the
         same user (CatalogService does); otherwise pass `user_id` and it's
         fetched here."""
@@ -221,9 +234,10 @@ class AccessResolver:
         resolved_user_id = user_id or next(
             (g.user_id for g in snapshot.grantees if g.grantee_type is GranteeType.USER), None
         )
-        owns_this_personal_workspace = bool(path) and path[0].owner_id == resolved_user_id
+        if path and path[0].owner_id is not None and path[0].owner_id == resolved_user_id:
+            return Role.ADMIN
 
-        if SystemRole.SUPER_VIEWER in snapshot.system_roles and not owns_this_personal_workspace:
+        if SystemRole.SUPER_VIEWER in snapshot.system_roles:
             return Role.VIEWER
 
         restriction = await self.nearest_restriction(resource_id, path=path)

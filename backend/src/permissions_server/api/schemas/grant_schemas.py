@@ -22,3 +22,6 @@ class GrantOut(BaseModel):
     resource_id: str
     role: Role
     granted_by: str
+    locked: bool
+    """True for a personal workspace owner's own grant inside that
+    workspace — always Admin, can't be changed or revoked."""

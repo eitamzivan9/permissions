@@ -71,6 +71,8 @@ class RestrictionService:
         )
 
         existing = await self._restriction_repository.get_restriction(grantee, resource_id)
+        if existing is not None and existing.role is Role.ADMIN and role is not Role.ADMIN:
+            await self._ensure_not_orphaned(grantee, resource_id, entry_stays=True)
         result = await self._restriction_repository.upsert_restriction(
             grantee, resource_id, role, granted_by=actor.id
         )
@@ -95,6 +97,29 @@ class RestrictionService:
 
         return result
 
+    async def _ensure_not_orphaned(
+        self, grantee: Grantee, resource_id: str, *, entry_stays: bool
+    ) -> None:
+        """Rejects taking `grantee`'s Admin-role entry away — by removing it
+        (entry_stays=False) or demoting it (entry_stays=True) — when that
+        would leave the resource still gated with zero Admin entries left to
+        manage its whitelist. Removing the very last restriction row
+        entirely — even an Admin-role one — is always fine: that's a full
+        unrestrict, not an orphan, and "Clear all" needs to be able to reach
+        zero. A demoted entry keeps the resource gated by itself."""
+        all_restrictions = await self._restriction_repository.list_restrictions_for_resource(
+            resource_id
+        )
+        others = [r for r in all_restrictions if r.grantee != grantee]
+        stays_gated = entry_stays or bool(others)
+        if stays_gated and not any(r.role is Role.ADMIN for r in others):
+            raise ConflictError(
+                f"cannot take away the last Admin-role restriction entry on {resource_id} "
+                "while the resource stays gated — no one would be able to manage its "
+                "whitelist",
+                code="last_admin_restriction",
+            )
+
     async def revoke_restriction(
         self, actor: AuthenticatedUser, grantee: Grantee, resource_id: str
     ) -> None:
@@ -107,23 +132,7 @@ class RestrictionService:
             )
 
         if existing.role is Role.ADMIN:
-            all_restrictions = await self._restriction_repository.list_restrictions_for_resource(
-                resource_id
-            )
-            remaining = [r for r in all_restrictions if r.grantee != grantee]
-            remaining_admins = [r for r in remaining if r.role is Role.ADMIN]
-            # Only a problem if the resource STAYS gated afterward (other
-            # restriction rows remain) with zero admins left to manage it.
-            # Removing the very last restriction row entirely — even an
-            # Admin-role one — is always fine: that's a full unrestrict, not
-            # an orphan, and "Clear all" needs to be able to reach zero.
-            if remaining and not remaining_admins:
-                raise ConflictError(
-                    f"cannot remove the last Admin-role restriction entry on {resource_id} "
-                    "while other restriction entries remain — it would leave the resource "
-                    "gated with no one able to manage its whitelist",
-                    code="last_admin_restriction",
-                )
+            await self._ensure_not_orphaned(grantee, resource_id, entry_stays=False)
 
         await self._restriction_repository.delete_restriction(grantee, resource_id)
         await self._audit_service.record_unrestrict(actor, grantee, resource_id, existing.role)

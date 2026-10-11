@@ -99,6 +99,8 @@ export const en = {
   "manageAccess.loadFailed": "Failed to load access data.",
   "manageAccess.currentGrants": "Current grants here",
   "manageAccess.revoke": "Revoke",
+  "manageAccess.owner": "Owner",
+  "manageAccess.ownerLocked": "The workspace owner is always Admin here.",
   "manageAccess.grantAccess": "Grant access",
   "manageAccess.noSubordinates": "You have no subordinates to grant access to.",
   "manageAccess.setSuccess": "Set {role} access.",
@@ -120,6 +122,7 @@ export const en = {
   "restrictions.add": "Add to whitelist",
   "restrictions.noUsers": "No users available.",
   "restrictions.addSuccess": "Added {role} to the whitelist.",
+  "restrictions.roleChanged": "Changed whitelist role to {role}.",
   "restrictions.removeSuccess": "Removed from the whitelist.",
   "restrictions.clearSuccess":
     "Cleared the whitelist — access here now falls back to ordinary grants.",
@@ -144,7 +147,9 @@ export const en = {
   "errors.delete_requires_admin": "You need Admin access to delete this resource.",
   "errors.delete_not_empty": "Can't delete: {count} item(s) inside. Remove them first.",
   "errors.last_admin_restriction":
-    "Can't remove the last Admin on the whitelist while other entries remain.",
+    "The whitelist must keep at least one Admin. Add another Admin before removing or changing this one.",
+  "errors.owner_grant_locked":
+    "The owner of a personal workspace is always Admin in it. Their access can't be changed.",
 } satisfies Record<string, string>;
 
 export type MessageKey = keyof typeof en;

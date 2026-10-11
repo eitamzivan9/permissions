@@ -200,3 +200,29 @@ async def test_user_can_revoke_their_own_grant_without_any_manage_authority(clie
         "/catalog", headers=auth_headers(sub_token), params={"search": "Zoning Districts"}
     )
     assert catalog.json()["items"] == []  # no access left, so it's hidden
+
+
+async def test_owners_personal_workspace_grant_is_locked(client):
+    """The owner's Admin grant on their own personal workspace is flagged
+    `locked` and can't be lowered or revoked through the API — by anyone."""
+    owner_token = await login_as(client, VP_SUBORDINATE)
+    workspace = (
+        await client.get("/resources/my-workspace", headers=auth_headers(owner_token))
+    ).json()
+    await _grant_user(client, owner_token, workspace["id"], VP, "viewer")
+
+    grants = (
+        await client.get(f"/grants/{workspace['id']}", headers=auth_headers(owner_token))
+    ).json()
+    locked = {g["user_id"]: g["locked"] for g in grants}
+    assert locked == {VP_SUBORDINATE: True, VP: False}
+
+    resp = await _grant_user(client, owner_token, workspace["id"], VP_SUBORDINATE, "viewer")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "owner_grant_locked"
+
+    resp = await client.delete(
+        f"/grants/{workspace['id']}/user/{VP_SUBORDINATE}", headers=auth_headers(owner_token)
+    )
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "owner_grant_locked"

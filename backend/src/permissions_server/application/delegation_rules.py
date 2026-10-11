@@ -40,8 +40,16 @@ async def is_within_actors_personal_workspace(
 ) -> bool:
     """A personal workspace's owner has full authority over its whole
     subtree, regardless of the org chart — it's their own sandbox, not
-    something they manage by reporting-line authority. Only a Workspace can
-    be a tree root, so path[0] (root-first) is the personal workspace itself
-    whenever one exists on this path."""
+    something they manage by reporting-line authority."""
+    return await personal_workspace_owner_id(resource_repository, resource_id) == actor_id
+
+
+async def personal_workspace_owner_id(
+    resource_repository: ResourceRepository, resource_id: str
+) -> str | None:
+    """The owner of the personal workspace resource_id lives in, or None if
+    it's in a team/shared workspace. Only a Workspace can be a tree root, so
+    path[0] (root-first) is the personal workspace itself whenever one
+    exists on this path."""
     path = await resource_repository.path_to_root(resource_id)
-    return bool(path) and path[0].owner_id == actor_id
+    return path[0].owner_id if path else None

@@ -97,6 +97,8 @@ export const he: Partial<Messages> = {
   "manageAccess.loadFailed": "טעינת נתוני ההרשאות נכשלה.",
   "manageAccess.currentGrants": "הרשאות קיימות כאן",
   "manageAccess.revoke": "שלילת הרשאה",
+  "manageAccess.owner": "בעלים",
+  "manageAccess.ownerLocked": "בעלי סביבת העבודה הם תמיד אדמין כאן.",
   "manageAccess.grantAccess": "מתן הרשאה",
   "manageAccess.noSubordinates": "אין לך כפופים שאפשר לתת להם הרשאה.",
   "manageAccess.setSuccess": "הוגדרה הרשאת {role}.",
@@ -118,6 +120,7 @@ export const he: Partial<Messages> = {
   "restrictions.add": "הוספה לרשימה הלבנה",
   "restrictions.noUsers": "אין משתמשים זמינים.",
   "restrictions.addSuccess": "{role} נוסף לרשימה הלבנה.",
+  "restrictions.roleChanged": "התפקיד ברשימה הלבנה שונה ל{role}.",
   "restrictions.removeSuccess": "הוסר מהרשימה הלבנה.",
   "restrictions.clearSuccess": "הרשימה הלבנה נוקתה — הגישה כאן חוזרת להרשאות הרגילות.",
   "restrictions.clearPartial":
@@ -138,5 +141,7 @@ export const he: Partial<Messages> = {
   "errors.delete_requires_admin": "נדרשת הרשאת אדמין כדי למחוק את המשאב הזה.",
   "errors.delete_not_empty": "לא ניתן למחוק: יש בפנים {count} פריטים. יש להסיר אותם קודם.",
   "errors.last_admin_restriction":
-    "לא ניתן להסיר את האדמין האחרון מהרשימה הלבנה כל עוד נשארו בה אחרים.",
+    "ברשימה הלבנה חייב להישאר לפחות אדמין אחד. יש להוסיף אדמין נוסף לפני הסרה או שינוי של זה.",
+  "errors.owner_grant_locked":
+    "בעלי סביבת עבודה אישית הם תמיד אדמין בה. לא ניתן לשנות את ההרשאה שלהם.",
 };
