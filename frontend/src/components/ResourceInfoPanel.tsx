@@ -8,6 +8,7 @@ import { ORGANIZATIONAL_TYPES } from "../lib/resourceTypeMeta";
 import CreateResourceModal from "./CreateResourceModal";
 import ManageAccessModal from "./ManageAccessModal";
 import RestrictionsModal from "./RestrictionsModal";
+import Modal from "./Modal";
 
 interface ResourceInfoPanelProps {
   item: CatalogItem;
@@ -135,140 +136,132 @@ export default function ResourceInfoPanel({ item, onClose, onChanged }: Resource
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-lg bg-white p-5 shadow-lg"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-              {t(TYPE_LABEL_KEYS[item.type])}
-            </span>
-            <h3 className="mt-1 truncate text-base font-semibold text-slate-900">
-              <bdi>{item.name}</bdi>
-            </h3>
-          </div>
+    <Modal onClose={onClose}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+            {t(TYPE_LABEL_KEYS[item.type])}
+          </span>
+          <h3 className="mt-1 truncate text-base font-semibold text-slate-900">
+            <bdi>{item.name}</bdi>
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          aria-label={t("common.close")}
+        >
+          ✕
+        </button>
+      </div>
+
+      {item.effective_role === null && (
+        <div className="mt-4 rounded-md bg-slate-50 p-3 text-sm">
+          <p className="font-medium text-slate-700">{t("info.noAccess")}</p>
+          {isLoadingAdmins && <p className="mt-1 text-slate-500">{`${t("info.lookingUpAdmins")}…`}</p>}
+          {!isLoadingAdmins && admins !== null && admins.length === 0 && (
+            <p className="mt-1 text-slate-500">{t("info.noAdmins")}</p>
+          )}
+          {!isLoadingAdmins && admins !== null && admins.length > 0 && (
+            <>
+              <p className="mt-1 text-slate-500">{t("info.askAdmins")}</p>
+              <ul className="mt-1 space-y-0.5">
+                {admins.map((admin) => (
+                  <li key={`${admin.grantee_type}-${admin.id}`} className="text-slate-700">
+                    <bdi>{admin.name}</bdi>
+                    {admin.grantee_type === "team" && (
+                      <span className="ms-1 text-xs text-slate-400">({t("common.teamSuffix")})</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="mt-4 space-y-2">
+        {canCreateHere && (
           <button
             type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            aria-label={t("common.close")}
+            onClick={() => setSubView("create")}
+            className="block w-full rounded-md border border-slate-300 px-3 py-2 text-start text-sm font-medium text-slate-700 hover:bg-slate-100"
           >
-            ✕
+            + {t("info.create")}
           </button>
-        </div>
-
-        {item.effective_role === null && (
-          <div className="mt-4 rounded-md bg-slate-50 p-3 text-sm">
-            <p className="font-medium text-slate-700">{t("info.noAccess")}</p>
-            {isLoadingAdmins && <p className="mt-1 text-slate-500">{`${t("info.lookingUpAdmins")}…`}</p>}
-            {!isLoadingAdmins && admins !== null && admins.length === 0 && (
-              <p className="mt-1 text-slate-500">{t("info.noAdmins")}</p>
-            )}
-            {!isLoadingAdmins && admins !== null && admins.length > 0 && (
-              <>
-                <p className="mt-1 text-slate-500">{t("info.askAdmins")}</p>
-                <ul className="mt-1 space-y-0.5">
-                  {admins.map((admin) => (
-                    <li key={`${admin.grantee_type}-${admin.id}`} className="text-slate-700">
-                      <bdi>{admin.name}</bdi>
-                      {admin.grantee_type === "team" && (
-                        <span className="ms-1 text-xs text-slate-400">({t("common.teamSuffix")})</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </div>
+        )}
+        {item.can_manage && (
+          <button
+            type="button"
+            onClick={() => setSubView("manage")}
+            className="block w-full rounded-md border border-slate-300 px-3 py-2 text-start text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            {t("info.manageAccess")}
+          </button>
+        )}
+        {canRestrictHere && (
+          <button
+            type="button"
+            onClick={() => setSubView("restrict")}
+            className="block w-full rounded-md border border-amber-300 px-3 py-2 text-start text-sm font-medium text-amber-700 hover:bg-amber-50"
+          >
+            {t("info.restrictions")}
+          </button>
         )}
 
-        <div className="mt-4 space-y-2">
-          {canCreateHere && (
-            <button
-              type="button"
-              onClick={() => setSubView("create")}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-start text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              + {t("info.create")}
-            </button>
-          )}
-          {item.can_manage && (
-            <button
-              type="button"
-              onClick={() => setSubView("manage")}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-start text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              {t("info.manageAccess")}
-            </button>
-          )}
-          {canRestrictHere && (
-            <button
-              type="button"
-              onClick={() => setSubView("restrict")}
-              className="block w-full rounded-md border border-amber-300 px-3 py-2 text-start text-sm font-medium text-amber-700 hover:bg-amber-50"
-            >
-              {t("info.restrictions")}
-            </button>
-          )}
-
-          {(canDeleteHere || canRemoveAccessHere) && !isConfirmingDelete && (
-            <button
-              type="button"
-              onClick={() => setIsConfirmingDelete(true)}
-              className="block w-full rounded-md border border-red-300 px-3 py-2 text-start text-sm font-medium text-red-700 hover:bg-red-50"
-            >
-              {canDeleteHere ? t("info.delete") : t("info.removeAccess")}
-            </button>
-          )}
-          {(canDeleteHere || canRemoveAccessHere) && isConfirmingDelete && (
-            <div className="rounded-md border border-red-300 p-3">
-              <p className="text-sm text-red-700">
-                {canDeleteHere ? t("info.confirmDelete") : t("info.confirmRemoveAccess")}
-              </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={canDeleteHere ? handleDelete : handleRemoveAccess}
-                  disabled={isDeleting}
-                  className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isDeleting ? `${t("info.removing")}…` : t("common.confirm")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsConfirmingDelete(false)}
-                  disabled={isDeleting}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {t("common.cancel")}
-                </button>
-              </div>
-            </div>
-          )}
-          {deleteBlockedByChildren && (
-            <p className="text-xs text-slate-400">
-              {tPlural("info.deleteBlocked", item.children.length)}
+        {(canDeleteHere || canRemoveAccessHere) && !isConfirmingDelete && (
+          <button
+            type="button"
+            onClick={() => setIsConfirmingDelete(true)}
+            className="block w-full rounded-md border border-red-300 px-3 py-2 text-start text-sm font-medium text-red-700 hover:bg-red-50"
+          >
+            {canDeleteHere ? t("info.delete") : t("info.removeAccess")}
+          </button>
+        )}
+        {(canDeleteHere || canRemoveAccessHere) && isConfirmingDelete && (
+          <div className="rounded-md border border-red-300 p-3">
+            <p className="text-sm text-red-700">
+              {canDeleteHere ? t("info.confirmDelete") : t("info.confirmRemoveAccess")}
             </p>
-          )}
-          {deleteError && (
-            <p className="rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700">{deleteError}</p>
-          )}
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={canDeleteHere ? handleDelete : handleRemoveAccess}
+                disabled={isDeleting}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isDeleting ? `${t("info.removing")}…` : t("common.confirm")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsConfirmingDelete(false)}
+                disabled={isDeleting}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          </div>
+        )}
+        {deleteBlockedByChildren && (
+          <p className="text-xs text-slate-400">
+            {tPlural("info.deleteBlocked", item.children.length)}
+          </p>
+        )}
+        {deleteError && (
+          <p className="rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700">{deleteError}</p>
+        )}
 
-          {!canCreateHere &&
-            !item.can_manage &&
-            !canRestrictHere &&
-            !canDeleteHere &&
-            !canRemoveAccessHere &&
-            !deleteBlockedByChildren && (
-              <p className="text-sm text-slate-500">{t("info.noActions")}</p>
-            )}
-        </div>
+        {!canCreateHere &&
+          !item.can_manage &&
+          !canRestrictHere &&
+          !canDeleteHere &&
+          !canRemoveAccessHere &&
+          !deleteBlockedByChildren && (
+            <p className="text-sm text-slate-500">{t("info.noActions")}</p>
+          )}
       </div>
-    </div>
+    </Modal>
   );
 }

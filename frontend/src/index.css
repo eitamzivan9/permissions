@@ -1,1 +1,125 @@
 @import "tailwindcss";
+
+@theme {
+  /* Assistant covers both Hebrew and Latin (self-hosted, see main.tsx). */
+  --font-sans: "Assistant", ui-sans-serif, system-ui, sans-serif;
+
+  /* Pop-ups fade in and grow slightly (Modal). */
+  --animate-backdrop-in: backdrop-in 150ms ease-out;
+  --animate-modal-in: modal-in 180ms ease-out;
+  @keyframes backdrop-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes modal-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(6px);
+    }
+  }
+
+  /* A folder's children slide in when it opens (ResourceNode). */
+  --animate-tree-open: tree-open 180ms ease-out;
+  @keyframes tree-open {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/*
+ * Dark mode: instead of a `dark:` twin on every class in every component,
+ * remap the handful of palette shades the app actually uses. Tailwind v4
+ * utilities read these variables, so the whole UI flips in one place.
+ * Neutral surfaces invert (white <-> slate-900, light slates <-> dark
+ * slates); tinted shades swap their pale backgrounds for deep ones and
+ * their dark text for light text. Set by ThemeToggle via data-theme.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-white: #0f172a;
+  --color-slate-50: #020617;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+
+  --color-red-50: #450a0a;
+  --color-red-300: #991b1b;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+
+  --color-green-50: #052e16;
+  --color-green-300: #166534;
+  --color-green-700: #86efac;
+
+  --color-amber-50: #451a03;
+  --color-amber-300: #92400e;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+
+  --color-blue-50: #172554;
+  --color-blue-300: #1e40af;
+  --color-blue-700: #93c5fd;
+
+  --color-purple-50: #3b0764;
+  --color-purple-300: #6b21a8;
+  --color-purple-700: #d8b4fe;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-slate-50);
+    color: var(--color-slate-900);
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  /* Click feedback everywhere: smooth hover colors and a small press. */
+  button,
+  select,
+  input {
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease,
+      transform 100ms ease;
+  }
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+  button:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  /* Visible keyboard focus, never for mouse clicks. */
+  :where(button, select, input, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-blue-300);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+  button:active:not(:disabled) {
+    transform: none;
+  }
+}

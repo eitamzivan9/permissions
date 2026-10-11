@@ -5,6 +5,7 @@ import { listMockUsers } from "../api/client";
 import type { MockUser } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import LanguageToggle from "../components/LanguageToggle";
+import ThemeToggle from "../components/ThemeToggle";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export default function Login() {
@@ -66,8 +67,9 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="absolute end-4 top-4">
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="absolute end-4 top-4 flex items-center gap-2">
+        <ThemeToggle />
         <LanguageToggle />
       </div>
       <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 shadow-sm">

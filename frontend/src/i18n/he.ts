@@ -4,6 +4,8 @@ import type { Messages } from "./en";
 // (see LanguageContext). Only keys that exist in en.ts are accepted.
 export const he: Partial<Messages> = {
   "lang.switchTo": "English",
+  "theme.toDark": "מעבר למצב כהה",
+  "theme.toLight": "מעבר למצב בהיר",
 
   "common.close": "סגירה",
   "common.loading": "טוען",
@@ -57,8 +59,8 @@ export const he: Partial<Messages> = {
 
   "node.collapse": "כיווץ",
   "node.expand": "הרחבה",
-  "node.reachable": "נגיש",
-  "node.reachableHint": "אין לך תפקיד כאן, אבל יש לך גישה לפחות לפריט אחד בתוכו",
+  "node.reachable": "מכיל פריטים שיש לך גישה אליהם",
+  "node.reachableHint": "אין לך תפקיד כאן, אבל יש לך גישה לפחות לפריט אחד בתוכו.",
   "node.actions": "פעולות",
   "node.actionsFor": "פעולות עבור {name}",
   "node.moveFailed": "העברת המשאב נכשלה.",

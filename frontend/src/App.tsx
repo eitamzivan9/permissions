@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
+import GlobeBackdrop from "./components/GlobeBackdrop";
 import { LanguageProvider, useLanguage } from "./i18n/LanguageContext";
 import Login from "./pages/Login";
 import Permissions from "./pages/Permissions";
@@ -11,7 +12,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-slate-500">{`${t("common.loading")}…`}</p>
       </div>
     );
@@ -44,6 +45,7 @@ function AppRoutes() {
 function App() {
   return (
     <LanguageProvider>
+      <GlobeBackdrop />
       <BrowserRouter>
         <AuthProvider>
           <AppRoutes />

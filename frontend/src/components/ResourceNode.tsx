@@ -86,10 +86,12 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`flex items-center justify-between gap-3 rounded-md px-3 py-2 ${
-          depth === 0 ? "border border-slate-200 bg-white shadow-sm" : "bg-slate-50"
+        className={`group flex items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ${
+          depth === 0
+            ? "border border-slate-200 bg-white/80 shadow-sm backdrop-blur-sm hover:border-slate-300 hover:bg-white/90 hover:shadow-md"
+            : "bg-white/50 backdrop-blur-sm hover:bg-white/80"
         } ${isDraggable ? "cursor-grab active:cursor-grabbing" : ""} ${
-          isDropTarget ? "ring-2 ring-inset ring-slate-400" : ""
+          isDropTarget ? "ring-2 ring-inset ring-blue-300" : ""
         }`}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -97,21 +99,47 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
             <button
               type="button"
               onClick={() => setIsExpanded((expanded) => !expanded)}
-              className="shrink-0 text-slate-400 hover:text-slate-600"
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border hover:bg-slate-200 hover:text-slate-900 active:bg-slate-300 ${
+                isExpanded
+                  ? "border-slate-300 bg-slate-100 text-slate-700"
+                  : "border-transparent text-slate-500"
+              }`}
               aria-label={isExpanded ? t("node.collapse") : t("node.expand")}
+              aria-expanded={isExpanded}
+              title={isExpanded ? t("node.collapse") : t("node.expand")}
             >
-              {/* ▸ points toward where text flows; mirrored under RTL. */}
-              <span className={isExpanded ? undefined : "inline-block rtl:-scale-x-100"}>
-                {isExpanded ? "▾" : "▸"}
-              </span>
+              {/* Points toward where text flows (mirrored under RTL) and turns
+                  down when open. */}
+              <svg
+                viewBox="0 0 20 20"
+                aria-hidden="true"
+                className={`h-4 w-4 transition-transform duration-200 rtl:-scale-x-100 ${
+                  isExpanded ? "rotate-90 rtl:-rotate-90" : ""
+                }`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M7.5 4.5 13 10l-5.5 5.5" />
+              </svg>
             </button>
           ) : (
-            <span className="w-4 shrink-0" />
+            <span className="w-7 shrink-0" />
           )}
           <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
             {t(TYPE_LABEL_KEYS[item.type])}
           </span>
-          <span className="truncate text-sm font-medium text-slate-900" dir="auto">
+          <span
+            className={`truncate text-sm font-medium text-slate-900 ${
+              hasChildren ? "cursor-pointer hover:underline" : ""
+            }`}
+            dir="auto"
+            // Mouse convenience: the name also toggles a folder open; the
+            // chevron button above stays the keyboard/screen-reader control.
+            onClick={hasChildren ? () => setIsExpanded((expanded) => !expanded) : undefined}
+          >
             {item.name}
           </span>
           {!item.effective_role && item.can_fetch && (
@@ -128,7 +156,7 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
           <button
             type="button"
             onClick={() => setIsInfoOpen(true)}
-            className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:bg-slate-200 hover:text-slate-900 active:bg-slate-300"
             aria-label={t("node.actionsFor", { name: item.name })}
             title={t("node.actions")}
           >
@@ -142,7 +170,7 @@ export default function ResourceNode({ item, depth, onChanged }: ResourceNodePro
       )}
 
       {hasChildren && isExpanded && (
-        <div className="mt-2 space-y-2 ps-4">
+        <div className="mt-2 animate-tree-open space-y-2 ps-4">
           {item.children.map((child) => (
             <ResourceNode key={child.id} item={child} depth={depth + 1} onChanged={onChanged} />
           ))}

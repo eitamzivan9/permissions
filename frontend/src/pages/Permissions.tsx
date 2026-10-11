@@ -5,6 +5,7 @@ import { getCatalog, isSuperEditor, UnauthorizedError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import CreateTeamWorkspaceModal from "../components/CreateTeamWorkspaceModal";
 import LanguageToggle from "../components/LanguageToggle";
+import ThemeToggle from "../components/ThemeToggle";
 import ResourceNode from "../components/ResourceNode";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -117,8 +118,8 @@ export default function Permissions() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-4">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">{t("permissions.title")}</h1>
@@ -129,6 +130,7 @@ export default function Permissions() {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <ThemeToggle />
             <LanguageToggle />
             {isSuperEditor(user) && (
               <button

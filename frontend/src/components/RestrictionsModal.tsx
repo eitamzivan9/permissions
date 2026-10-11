@@ -11,7 +11,11 @@ import {
 } from "../api/client";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ROLE_LABEL_KEYS } from "../i18n/labels";
+import { resolveGrantee, sortGrantees } from "../lib/grantees";
+import ConfirmButton from "./ConfirmButton";
+import GranteeName from "./GranteeName";
 import RoleSelect from "./RoleSelect";
+import Modal from "./Modal";
 
 interface RestrictionsModalProps {
   resourceId: string;
@@ -158,12 +162,10 @@ export default function RestrictionsModal({
         await deleteRestriction({
           resourceId,
           granteeType: restriction.grantee_type,
-          granteeId:
-            (restriction.grantee_type === "user" ? restriction.user_id : restriction.team_id) ??
-            "",
+          granteeId: restrictionGranteeId(restriction),
         });
       } catch {
-        failures.push(granteeLabel(restriction));
+        failures.push(granteeDisplayName(restriction));
       }
     }
     if (failures.length > 0) {
@@ -176,18 +178,12 @@ export default function RestrictionsModal({
     setIsSubmitting(false);
   }
 
-  function granteeLabel(entry: Restriction | Grant): string {
-    if (entry.grantee_type === "user") {
-      const user = allUsers.find((candidate) => candidate.id === entry.user_id);
-      return user
-        ? t("common.userOption", { name: user.name, email: user.email })
-        : (entry.user_id ?? t("common.unknownUser"));
-    }
-    const team = teams.find((candidate) => candidate.id === entry.team_id);
-    return t("common.teamLabel", {
-      name: team ? team.name : (entry.team_id ?? t("common.unknown")),
-    });
+  function granteeDisplayName(entry: Restriction): string {
+    const { name, id } = resolveGrantee(entry, allUsers, teams);
+    return name ?? id;
   }
+
+  const sortedRestrictions = sortGrantees(restrictions, allUsers, teams);
 
   // Admins here today via an ordinary grant — shown only until the first
   // restriction is set, since RestrictionService.set_restriction() then
@@ -196,221 +192,203 @@ export default function RestrictionsModal({
   const currentAdminGrants = grants.filter((grant) => grant.role === "admin");
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-lg bg-white p-5 shadow-lg"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">{t("restrictions.title")}</h3>
-            <p className="mt-0.5 truncate text-sm text-slate-500">
-              <bdi>{resourceName}</bdi>
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            aria-label={t("common.close")}
-          >
-            ✕
-          </button>
+    <Modal onClose={onClose}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">{t("restrictions.title")}</h3>
+          <p className="mt-0.5 truncate text-sm text-slate-500">
+            <bdi>{resourceName}</bdi>
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          aria-label={t("common.close")}
+        >
+          ✕
+        </button>
+      </div>
 
-        <p className="mt-3 rounded-md bg-amber-50 p-2.5 text-xs text-amber-800">
-          {t("restrictions.warning")}
-        </p>
+      <p className="mt-3 rounded-md bg-amber-50 p-2.5 text-xs text-amber-800">
+        {t("restrictions.warning")}
+      </p>
 
-        {isLoading && <p className="mt-5 text-sm text-slate-500">{`${t("common.loading")}…`}</p>}
-        {loadError && (
-          <p className="mt-5 rounded-md bg-red-50 p-3 text-sm text-red-700">{loadError}</p>
-        )}
+      {isLoading && <p className="mt-5 text-sm text-slate-500">{`${t("common.loading")}…`}</p>}
+      {loadError && (
+        <p className="mt-5 rounded-md bg-red-50 p-3 text-sm text-red-700">{loadError}</p>
+      )}
 
-        {!isLoading && !loadError && (
-          <div className="mt-4 space-y-4">
-            {restrictions.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {t("restrictions.current")}
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={handleClearAll}
-                    disabled={isSubmitting}
-                    className="text-xs font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {t("restrictions.clearAll")}
-                  </button>
-                </div>
-                <ul className="mt-1.5 space-y-1.5">
-                  {restrictions.map((restriction) => (
-                    <li
-                      key={`${restriction.grantee_type}:${restriction.user_id ?? restriction.team_id}`}
-                      className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm"
-                    >
-                      <span className="truncate text-slate-700" dir="auto">
-                        {granteeLabel(restriction)}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <RoleSelect
-                          role={restriction.role}
-                          disabled={isSubmitting}
-                          onChange={(role) =>
-                            void applyRestriction(
-                              restriction.grantee_type,
-                              restrictionGranteeId(restriction),
-                              role,
-                              "restrictions.roleChanged",
-                            )
-                          }
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRevoke(restriction)}
-                          disabled={isSubmitting}
-                          className="text-xs font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {t("restrictions.remove")}
-                        </button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+      {!isLoading && !loadError && (
+        <div className="mt-4 space-y-4">
+          {restrictions.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {t("restrictions.current")}
+                </h4>
+                <ConfirmButton
+                  label={t("restrictions.clearAll")}
+                  onConfirm={() => void handleClearAll()}
+                  disabled={isSubmitting}
+                />
               </div>
-            )}
-            {restrictions.length === 0 && (
-              <div>
-                <p className="text-sm text-slate-500">
-                  {t("restrictions.none")}
-                </p>
-                {currentAdminGrants.length > 0 && (
-                  <div className="mt-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {t("restrictions.adminToday")}
-                    </h4>
-                    <ul className="mt-1.5 space-y-1.5">
-                      {currentAdminGrants.map((grant) => (
-                        <li
-                          key={`${grant.grantee_type}:${grant.user_id ?? grant.team_id}`}
-                          className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm"
-                        >
-                          <span className="truncate text-slate-700" dir="auto">
-                            {granteeLabel(grant)}
-                          </span>
-                          <span className="text-slate-500">{t("role.admin")}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {t("restrictions.adminTodayHint")}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="border-t border-slate-200 pt-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t("restrictions.add")}
-              </h4>
-
-              <div className="mt-2 flex gap-2">
-                {GRANTEE_TYPE_OPTIONS.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => handleGranteeTypeChange(option)}
-                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                      granteeType === option
-                        ? "bg-slate-900 text-white"
-                        : "border border-slate-300 text-slate-700 hover:bg-slate-100"
-                    }`}
+              <ul className="mt-1.5 space-y-1.5">
+                {sortedRestrictions.map((restriction) => (
+                  <li
+                    key={`${restriction.grantee_type}:${restriction.user_id ?? restriction.team_id}`}
+                    className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm"
                   >
-                    {option === "user" ? t("common.user") : t("common.team")}
-                  </button>
+                    <GranteeName entry={restriction} users={allUsers} teams={teams} />
+                    <span className="flex shrink-0 items-center gap-2">
+                      <RoleSelect
+                        role={restriction.role}
+                        disabled={isSubmitting}
+                        onChange={(role) =>
+                          void applyRestriction(
+                            restriction.grantee_type,
+                            restrictionGranteeId(restriction),
+                            role,
+                            "restrictions.roleChanged",
+                          )
+                        }
+                      />
+                      <ConfirmButton
+                        label={t("restrictions.remove")}
+                        onConfirm={() => void handleRevoke(restriction)}
+                        disabled={isSubmitting}
+                      />
+                    </span>
+                  </li>
                 ))}
-              </div>
-
-              {granteeOptions.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-500">
-                  {granteeType === "user" ? t("restrictions.noUsers") : t("common.noTeams")}
-                </p>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <label
-                      htmlFor="restrict-grantee"
-                      className="block text-sm font-medium text-slate-700"
-                    >
-                      {granteeType === "user" ? t("common.user") : t("common.team")}
-                    </label>
-                    <select
-                      id="restrict-grantee"
-                      className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
-                      value={selectedGranteeId}
-                      onChange={(event) => setSelectedGranteeId(event.target.value)}
-                    >
-                      {granteeType === "user"
-                        ? users.map((user) => (
-                            <option key={user.id} value={user.id} dir="auto">
-                              {t("common.userOption", { name: user.name, email: user.email })}
-                            </option>
-                          ))
-                        : teams.map((team) => (
-                            <option key={team.id} value={team.id} dir="auto">
-                              {team.name}
-                            </option>
-                          ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="restrict-role"
-                      className="block text-sm font-medium text-slate-700"
-                    >
-                      {t("common.role")}
-                    </label>
-                    <select
-                      id="restrict-role"
-                      className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
-                      value={selectedRole}
-                      onChange={(event) => setSelectedRole(event.target.value as Role)}
-                    >
-                      {ROLE_OPTIONS.map((role) => (
-                        <option key={role} value={role}>
-                          {t(ROLE_LABEL_KEYS[role])}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleApply}
-                    disabled={isSubmitting || !selectedGranteeId}
-                    className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isSubmitting ? `${t("common.applying")}…` : t("restrictions.add")}
-                  </button>
+              </ul>
+            </div>
+          )}
+          {restrictions.length === 0 && (
+            <div>
+              <p className="text-sm text-slate-500">
+                {t("restrictions.none")}
+              </p>
+              {currentAdminGrants.length > 0 && (
+                <div className="mt-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {t("restrictions.adminToday")}
+                  </h4>
+                  <ul className="mt-1.5 space-y-1.5">
+                    {currentAdminGrants.map((grant) => (
+                      <li
+                        key={`${grant.grantee_type}:${grant.user_id ?? grant.team_id}`}
+                        className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm"
+                      >
+                        <GranteeName entry={grant} users={allUsers} teams={teams} />
+                        <span className="text-slate-500">{t("role.admin")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {t("restrictions.adminTodayHint")}
+                  </p>
                 </div>
               )}
             </div>
+          )}
 
-            {actionError && (
-              <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{actionError}</p>
-            )}
-            {successMessage && (
-              <p className="rounded-md bg-green-50 p-3 text-sm text-green-700">{successMessage}</p>
+          <div className="border-t border-slate-200 pt-4">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("restrictions.add")}
+            </h4>
+
+            <div className="mt-2 flex gap-2">
+              {GRANTEE_TYPE_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => handleGranteeTypeChange(option)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                    granteeType === option
+                      ? "bg-slate-900 text-white"
+                      : "border border-slate-300 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {option === "user" ? t("common.user") : t("common.team")}
+                </button>
+              ))}
+            </div>
+
+            {granteeOptions.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">
+                {granteeType === "user" ? t("restrictions.noUsers") : t("common.noTeams")}
+              </p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label
+                    htmlFor="restrict-grantee"
+                    className="block text-sm font-medium text-slate-700"
+                  >
+                    {granteeType === "user" ? t("common.user") : t("common.team")}
+                  </label>
+                  <select
+                    id="restrict-grantee"
+                    className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
+                    value={selectedGranteeId}
+                    onChange={(event) => setSelectedGranteeId(event.target.value)}
+                  >
+                    {granteeType === "user"
+                      ? users.map((user) => (
+                          <option key={user.id} value={user.id} dir="auto">
+                            {t("common.userOption", { name: user.name, email: user.email })}
+                          </option>
+                        ))
+                      : teams.map((team) => (
+                          <option key={team.id} value={team.id} dir="auto">
+                            {team.name}
+                          </option>
+                        ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="restrict-role"
+                    className="block text-sm font-medium text-slate-700"
+                  >
+                    {t("common.role")}
+                  </label>
+                  <select
+                    id="restrict-role"
+                    className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none"
+                    value={selectedRole}
+                    onChange={(event) => setSelectedRole(event.target.value as Role)}
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>
+                        {t(ROLE_LABEL_KEYS[role])}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={isSubmitting || !selectedGranteeId}
+                  className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSubmitting ? `${t("common.applying")}…` : t("restrictions.add")}
+                </button>
+              </div>
             )}
           </div>
-        )}
-      </div>
-    </div>
+
+          {actionError && (
+            <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{actionError}</p>
+          )}
+          {successMessage && (
+            <p className="rounded-md bg-green-50 p-3 text-sm text-green-700">{successMessage}</p>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }

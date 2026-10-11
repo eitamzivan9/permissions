@@ -406,6 +406,23 @@ The UI is switchable EN/HE (`components/LanguageToggle.tsx`, choice kept in
   key in both dictionaries.
 - Data (resource/user/team names) is never translated — shown as stored.
 
+## Theme, font, shared UI pieces
+
+- **Dark mode** (`components/ThemeToggle.tsx`, saved in `localStorage`, defaulting to
+  the system setting; `index.html` applies it before React renders) works by
+  *remapping Tailwind's color variables* under `:root[data-theme="dark"]` in
+  `src/index.css` — there are no `dark:` classes in components. Only the shades the app
+  actually uses are remapped, so **a new color shade in a component needs a matching
+  dark entry in `index.css`**, or it will look wrong in dark mode.
+- **Font**: Assistant (Hebrew + Latin), self-hosted via the `@fontsource/assistant` npm
+  package (imported in `main.tsx`) — never a Google Fonts link, which won't load on the
+  closed network.
+- Reuse, don't re-create: `Modal.tsx` (every pop-up; Escape + backdrop close),
+  `ConfirmButton.tsx` (Confirm/Cancel before any destructive row action),
+  `RoleSelect.tsx`, `GranteeName.tsx` + `lib/grantees.ts` (grantee display + stable
+  sort order). Click/hover feedback for all buttons lives once in `index.css`'s base
+  layer. `GlobeBackdrop.tsx` is decoration only (aria-hidden, no pointer events).
+
 ## Delegation rule (who can change whose grant)
 
 `PermissionGrantService.can_manage()` — role-rank check applies to **both** grantee

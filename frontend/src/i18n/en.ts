@@ -6,6 +6,8 @@
 // Keys ending in `.one`/`.other` are plural forms, picked by tPlural().
 export const en = {
   "lang.switchTo": "עברית",
+  "theme.toDark": "Switch to dark mode",
+  "theme.toLight": "Switch to light mode",
 
   "common.close": "Close",
   "common.loading": "Loading",
@@ -59,8 +61,8 @@ export const en = {
 
   "node.collapse": "Collapse",
   "node.expand": "Expand",
-  "node.reachable": "reachable",
-  "node.reachableHint": "No role here, but reachable via at least one accessible child",
+  "node.reachable": "contains items you can access",
+  "node.reachableHint": "You have no role here, but you can access at least one item inside it.",
   "node.actions": "Actions",
   "node.actionsFor": "Actions for {name}",
   "node.moveFailed": "Failed to move the resource.",
