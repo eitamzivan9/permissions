@@ -111,10 +111,8 @@
   "109": ".can_manage",
   "110": "register_error_handlers",
   "111": "README.md",
-  "112": ".upsert_grant",
   "113": "CI/CD Setup — Remaining Manual Step",
-  "114": "integration/conftest.py",
   "115": "Quick start (always DB/Postgres mode)",
   "116": "access_resolver.py",
-  "117": ".access_anchor_ids"
+  "118": "ResourceInfoPanel.tsx"
 }
